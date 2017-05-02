@@ -520,9 +520,15 @@ https://github.com/minisllc/red-team-scripts
 	    Write-Verbose "Enumerating Event Logs for interesting entries (Get-ComputerDetails)..."
 	    Write-Output "`n[+] GET-COMPUTERDETAILS`n"
 
-	    $SecurityLog = Get-EventLog -LogName Security
-	    $Filtered4624 = Find-4624Logons $SecurityLog
-	    $Filtered4648 = Find-4648Logons $SecurityLog
+	    # Added Try/Catch to prevent parent from exiting if we don't have rights to read the security log. -EA preferences didn't make a difference.
+	    # This was only an issue when executed through Empire
+	    Try {
+	    	$SecurityLog = Get-EventLog -LogName Security
+	    	$Filtered4624 = Find-4624Logons $SecurityLog
+	    	$Filtered4648 = Find-4648Logons $SecurityLog
+	    }
+	    Catch{}
+	    
 	    $AppLockerLogs = Find-AppLockerLogs
 	    $PSLogs = Find-PSScriptsInPSAppLog
 	    $RdpClientData = Find-RDPClientConnections
@@ -1006,7 +1012,7 @@ https://github.com/minisllc/red-team-scripts
 	#>
 	    $ReturnInfo = @{}
 
-	    New-PSDrive -Name HKU -PSProvider Registry -Root Registry::HKEY_USERS | Out-Null
+	    $Null = New-PSDrive -Name HKU -PSProvider Registry -Root Registry::HKEY_USERS -ErrorAction SilentlyContinue
 
 	    #Attempt to enumerate the servers for all users
 	    $Users = Get-ChildItem -Path "HKU:\"
@@ -1171,7 +1177,7 @@ https://github.com/minisllc/red-team-scripts
 	    function Get-InternetExplorerHistory {
 	        #https://crucialsecurityblog.harris.com/2011/03/14/typedurls-part-1/
 
-	        $Null = New-PSDrive -Name HKU -PSProvider Registry -Root HKEY_USERS
+	        $Null = New-PSDrive -Name HKU -PSProvider Registry -Root HKEY_USERS -ErrorAction SilentlyContinue
 	        $Paths = Get-ChildItem 'HKU:\' -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'S-1-5-21-[0-9]+-[0-9]+-[0-9]+-[0-9]+$' }
 
 	        ForEach($Path in $Paths) {
