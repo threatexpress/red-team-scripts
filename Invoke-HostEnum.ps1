@@ -29,7 +29,7 @@ Function Invoke-HostEnum() {
 	- Network Adapter Configuration, Network Shares, Connections, Routing Table, DNS Cache
 	- Running Processes and Installed Services
 	- Interesting Registry Entries
-	- Local Users, Groups, Administrators
+	- Local Users, Groups, Administrators 
 	- Personal Security Product Status
 	- Interesting file locations and keyword searches via file indexing
 	- Interesting Windows Logs (User logins)
@@ -227,8 +227,8 @@ https://github.com/minisllc/red-team-scripts
 		$Output += "`nClipboard Contents:`n" + ([Windows.Clipboard]::GetText() -join "`r`n" |Out-String -width 300)	
     	
     	# Remaining binary calls to replace
-		$Output +="`nAccount Policy:`n" + ((net accounts)  -join "`r`n") 
-		$Output +="`nNetstat:`n" + ((netstat -nao)  -join "`r`n")
+		$Output +="`nAccount Policy (net accounts):`n" + ((net accounts)  -join "`r`n") 
+		$Output +="`nNetstat (netstat -ano):`n" + ((netstat -nao)  -join "`r`n")
 		
 		Return $Output
 	}
@@ -277,7 +277,7 @@ https://github.com/minisllc/red-team-scripts
 		[string] $Output = "`n[+] INTERESTING FILES`n"
 		
 		# Get Indexed files containg $searchStrings (Experimental), edit this to desired list of "dirty words"
-		$SearchStrings = "*confidential*","*proprietary*","*pass*","*credentials*","web.config"
+		$SearchStrings = "*secret*","*creds*","*credential*","*.vmdk","*confidential*","*proprietary*","*pass*","*credentials*","web.config"
 		$IndexedFiles = Foreach ($String in $SearchStrings) {Get-IndexedFiles $string}
 		
 		$Output += "`n`nIndexed File Search (confidential, proprietary, pass, credentials, web.config): `n" + ($IndexedFiles |Format-List | Out-String -width 300)
@@ -459,7 +459,7 @@ https://github.com/minisllc/red-team-scripts
 		
 		$Output +="`nDomain Users:`n" + (Get-WmiObject -Class Win32_UserAccount | sort SID -Descending | Format-Table Name,Caption,SID,Fullname,Disabled,Lockout,Description -auto | Out-String -width 300)
 
-		$Output +="`nDomain Groups:`n" + (Get-WmiObject -Class Win32_Group | sort SID -Descending | Format-Table Name,SID,Description -auto |Out-String -width 200)
+		$Output +="`nDomain Groups:`n" + (Get-WmiObject -Class Win32_Group | sort SID -Descending | Format-Table Name,SID,Description -auto |Out-String -width 300)
 
 		# Need a good non-binary computer listing function like net groups "Domain Computers" /domain
 
@@ -1385,14 +1385,14 @@ https://github.com/minisllc/red-team-scripts
 	      $searcher.SearchRoot = "LDAP://" + $GC
 	      $searcher.PageSize = 1000
 	      $searcher.Filter = "(&(!objectClass=computer)(servicePrincipalName=*))"
-	      $searcher.PropertiesToLoad.Add("serviceprincipalname") | Out-Null
-	      $searcher.PropertiesToLoad.Add("name") | Out-Null
-	      $searcher.PropertiesToLoad.Add("samaccountname") | Out-Null
-	      #$searcher.PropertiesToLoad.Add("userprincipalname") | Out-Null
-	      #$searcher.PropertiesToLoad.Add("displayname") | Out-Null
-	      $searcher.PropertiesToLoad.Add("memberof") | Out-Null
-	      $searcher.PropertiesToLoad.Add("pwdlastset") | Out-Null
-	      #$searcher.PropertiesToLoad.Add("distinguishedname") | Out-Null
+	      $Null = $searcher.PropertiesToLoad.Add("serviceprincipalname")
+	      $Null = $searcher.PropertiesToLoad.Add("name")
+	      $Null = $searcher.PropertiesToLoad.Add("samaccountname")
+	      #$Null = $searcher.PropertiesToLoad.Add("userprincipalname")
+	      #$Null = $searcher.PropertiesToLoad.Add("displayname")
+	      $Null = $searcher.PropertiesToLoad.Add("memberof")
+	      $Null = $searcher.PropertiesToLoad.Add("pwdlastset")
+	      #$Null = $searcher.PropertiesToLoad.Add("distinguishedname")
 
 	      $searcher.SearchScope = "Subtree"
 
@@ -1413,16 +1413,16 @@ https://github.com/minisllc/red-team-scripts
 	                  #@{Name="DistinguishedName";   Expression={$result.Properties["distinguishedname"][0].ToString()} }
 	              if ($UniqueAccounts) {
 	                  if (-not $accounts.Contains($result.Properties["samaccountname"][0].ToString())) {
-	                      $accounts.Add($result.Properties["samaccountname"][0].ToString()) | Out-Null
+	                      $Null = $accounts.Add($result.Properties["samaccountname"][0].ToString())
 	                      $o
 	                      if ($Request) {
-	                          New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList $spn.ToString() | Out-Null
+	                          $Null = New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList $spn.ToString()
 	                      }
 	                  }
 	              } else {
 	                  $o
 	                  if ($Request) {
-	                      New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList $spn.ToString() | Out-Null
+	                      $Null = New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList $spn.ToString()
 	                  }
 	              }
 	          }
