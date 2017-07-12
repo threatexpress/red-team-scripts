@@ -1,7 +1,7 @@
 # Red Team Scripts
 ---
 Red Team Scripts is a collection of red teaming related tools, scripts, techniques, and notes developed or discovered over time during engagements. 
-Related tool release blog posts can be found at [Threat Express](https://www.threatexpress.com) an Information Security Blog by MINIS.
+Related tool release blog posts can be found at [Threat Express](http://threatexpress.com) an Information Security Blog by MINIS.
 
 ## Situational Awareness
 
@@ -11,7 +11,7 @@ Related tool release blog posts can be found at [Threat Express](https://www.thr
 
 **Author:** Andrew Chiles (@andrewchiles) with code by Joe Bialek, rvrsh3ll, Beau Bullock, and Tim Medin
 
-A PowerShell v2.0 compatible script comprised of multiple system enumeration / situational awareness techniques collected over time. If system is a member of a Windows domain, it can also perform limited domain enumeration. However, domain enumeration is significantly limited with the intention that PowerView, BoodHound, etc will be also be used.
+A PowerShell v2.0 compatible script comprised of multiple system enumeration / situational awareness techniques collected over time. If system is a member of a Windows domain, it can also perform limited domain enumeration with the -Domain switch. However, domain enumeration is significantly limited with the intention that PowerView or BoodHound could also be used.
 
 **Enumerated Information:**
     
@@ -26,14 +26,18 @@ A PowerShell v2.0 compatible script comprised of multiple system enumeration / s
 - Interesting Windows Logs (User logins)
 - Basic Domain enumeration (users, groups, trusts, domain controllers, account policy, SPNs)
 
+**Empire 2.0 Integration**
+
+Use the accompanying hostenum.py script to include Invoke-HostEnum as post-exploitation situational awarness module in Empire. Both files need to be copied to the appropriate locations in Empire.
+
 **Credits:**
 
 Several functions are inspired or pulled directly from the following projects and are referenced in the code where applicable:
 
-[Invoke-HostRecon](https://raw.githubusercontent.com/dafthack/HostRecon/master/HostRecon.ps1) by Beau Bullock 
-[Get-ComputerDetails](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/Get-ComputerDetails.ps1) from Joe Bialek in PowerSploit 
-[Get-BrowserInformation](https://github.com/rvrsh3ll/Misc-Powershell-Scripts/blob/master/Get-BrowserData.ps1) by rvrsh3ll 
-[Get-UserSPNS](https://github.com/nidem/kerberoast) by Tim Medin 
+- [Invoke-HostRecon](https://raw.githubusercontent.com/dafthack/HostRecon/master/HostRecon.ps1) by Beau Bullock 
+- [Get-ComputerDetails](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/Get-ComputerDetails.ps1) from Joe Bialek in PowerSploit 
+- [Get-BrowserInformation](https://github.com/rvrsh3ll/Misc-Powershell-Scripts/blob/master/Get-BrowserData.ps1) by rvrsh3ll 
+- [Get-UserSPNS](https://github.com/nidem/kerberoast) by Tim Medin 
 
 ## Usage
 

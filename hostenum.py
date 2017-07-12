@@ -9,9 +9,10 @@ class Module:
 
             'Author': ['@andrewchiles'],
 
-            'Description': ('Performs detailed enumeration of the local system in the current user content. Optionaly performs some basic Windows Domain enumeration.'),
+            'Description': ('Performs detailed enumeration of the local system in the current user content.' 
+                            'Optionaly performs some basic Windows Domain enumeration.'),
 
-            'Background' : False,
+            'Background' : True,
 
             'OutputExtension' : None,
             
@@ -19,10 +20,12 @@ class Module:
 
             'OpsecSafe' : True,
             
-            'MinPSVersion' : '2',
+            'Language': 'powershell',
+
+            'MinLanguageVersion': '2',
             
             'Comments': [
-                'https://github.com/minisllc/'
+                'https://github.com/minisllc/red-team-scripts'
             ]
         }
 
@@ -36,12 +39,13 @@ class Module:
                 'Value'         :   ''
             },
             'Domain' : {
-                'Description'   :   'Perform basic Windows Domain enumeration checks',
+                'Description'   :   'Perform additional Windows Domain enumeration functions',
                 'Required'      :   False,
                 'Value'         :   ''
             },
             'Path' : {
-                'Description'   :   'Directory to write output to as an HTML formatted file',
+                'Description'   :   'Location on the target to write output to as an HTML formatted file (i.e. C:\\temp).'
+                                    'Output filename convention is YYYYMMDD_HHMMSS_HOSTNAME.html',
                 'Required'      :   False,
                 'Value'         :   ''
             }

@@ -98,7 +98,7 @@ https://github.com/minisllc/red-team-scripts
 		$os_info = gwmi Win32_OperatingSystem
 		$uptime = [datetime]::ParseExact($os_info.LastBootUpTime.SubString(0,14), "yyyyMMddHHmmss", $null)
 		$uptime = (Get-Date).Subtract($uptime)
-		$uptime = ("{0} Days, {1} Hours, {2}, Minutes, {3} Seconds" -f ($uptime.Days, $uptime.Hours, $uptime.Minutes, $uptime.Seconds))
+		$uptime = ("{0} Days, {1} Hours, {2} Minutes, {3} Seconds" -f ($uptime.Days, $uptime.Hours, $uptime.Minutes, $uptime.Seconds))
 		$Sysinfo = "[+] SYSTEMINFO`n"
 		$Sysinfo += "HOSTNAME:    $($ENV:COMPUTERNAME)`n"
 		$Sysinfo += "DATE:        $((Get-Date).ToUniversalTime()|Get-Date -uformat  %Y%m%d_%H%M%S)`n"
@@ -145,7 +145,7 @@ https://github.com/minisllc/red-team-scripts
 		Write-Verbose "Enumerating Local System..."
 		[string] $Output = "`n[+] WINDOWS CONFIGURATION`n`n"
 		# Systeminfo.exe
-		$Output +="`nSysteminfo.exe:`n" + ((systeminfo)  -join "`r`n")
+		#$Output +="`nSysteminfo.exe:`n" + ((systeminfo)  -join "`r`n")
 
 		# Installed software, check for 64-bit applications
 		$Software  = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Select-Object DisplayName, InstallDate, DisplayVersion, Publisher
@@ -1506,7 +1506,7 @@ Invoke-HostEnum
 	# Write initial execution status to screen
 	Write-Output "[+] Invoke-HostEnum"
 	Write-Output "[+] STARTTIME:`t$StartTime"
-	Write-Output "[+] PID:`t$PID`n"
+	Write-Output "[+] PID:`t`t$PID`n"
 
 	# Check user context of Powershell.exe process and alert if running as SYSTEM
 	$IsSystem = [Security.Principal.WindowsIdentity]::GetCurrent().IsSystem
