@@ -1506,7 +1506,7 @@ Invoke-HostEnum
 	# Write initial execution status to screen
 	Write-Output "[+] Invoke-HostEnum"
 	Write-Output "[+] STARTTIME:`t$StartTime"
-	Write-Output "[+] PID:`t`t$PID`n"
+	Write-Output "[+] PID:`t$PID`n"
 
 	# Check user context of Powershell.exe process and alert if running as SYSTEM
 	$IsSystem = [Security.Principal.WindowsIdentity]::GetCurrent().IsSystem
@@ -1530,17 +1530,17 @@ Invoke-HostEnum
 			$Results += Format-HTMLTable "Browser History" (Get-BrowserInformation |Format-Table User,Browser,Datatype,Data -auto| Out-String -width 300)
 			$Results += Format-HTMLTable "Active Tabs in IE" (Get-ActiveIEURLS -location |Format-Table -auto |Out-String -width 300) 
 		}
-		# Don't format as HTML and prepare for console output
+		# Don't format as HTML and output to console
 		Else {
-			$Results += Get-SysInfo
-			$Results += Get-LocalCommands
-			$Results += Get-ProcessInfo
-			$Results += Get-InterestingFiles
-			$Results += Get-RecycleBin
-			$Results += Get-AVInfo
-			$Results += Get-ComputerDetails -ToString
-			$Results += Get-BrowserInformation |Format-Table User,Browser,Datatype,Data -auto| Out-String -width 300
-			$Results += Get-ActiveIEURLS -location |Format-Table -auto |Out-String -width 300
+			Get-SysInfo
+			Get-LocalCommands
+			Get-ProcessInfo
+			Get-InterestingFiles
+			Get-RecycleBin
+			Get-AVInfo
+			Get-ComputerDetails -ToString
+			Get-BrowserInformation |Format-Table User,Browser,Datatype,Data -auto| Out-String -width 300
+			Get-ActiveIEURLS -location |Format-Table -auto |Out-String -width 300
 		}
 	}
 		
@@ -1552,8 +1552,8 @@ Invoke-HostEnum
 					$Results += Format-HTMLTable "User SPNs" (Get-UserSPNS -UniqueAccounts| Format-Table -auto |Out-String -width 400)
 				}
 			Else {
-				$Results += Get-DomainInfo
-				$Results += Get-UserSPNS -UniqueAccounts| Format-Table -auto |Out-String -width 400
+				Get-DomainInfo
+				Get-UserSPNS -UniqueAccounts| Format-Table -auto |Out-String -width 400
 			}
 		}
 		Else {
@@ -1574,11 +1574,7 @@ Invoke-HostEnum
 			Write-Output "`n[-] Error writing enumeration output to file! Check your permissions at $Path. $($Error[0])`n"
 		}
 	}
-	# Write enumeration results to console
-	Else {
-		Write-Output $Results
-	}
-	
+
 	# Determine the execution duration
 	$Duration = New-Timespan -start $Time -end ((Get-Date).ToUniversalTime())
 	Write-Output "[+] DURATION:`t$Duration`n[+] Execution complete!`n"
