@@ -7,7 +7,7 @@ Related tool release blog posts can be found at [Threat Express](http://threatex
 
 **Perform situational awareness on a local host or domain upon initial compromise.**
 
-### `Invoke-HostEnum -Local`
+### `Invoke-HostEnum`
 
 **Author:** Andrew Chiles (@andrewchiles) with code by harmj0y, Joe Bialek, rvrsh3ll, Beau Bullock, Tim Medin
 
@@ -25,6 +25,10 @@ A PowerShell v2.0 compatible script comprised of multiple system enumeration / s
 - Interesting file locations and keyword searches via file indexing
 - Interesting Windows Logs (User logins)
 - Basic Domain enumeration (users, groups, trusts, domain controllers, account policy, SPNs)
+
+**Privilege Escalation**
+
+Optionally performs Privilege Escalation functions from PowerUp in the PowerSploit project.
 
 **Empire 2.0 Integration**
 
@@ -51,3 +55,5 @@ This project and all individual scripts are under the BSD 3-Clause license
 ## Links
 
 [threatexpress.com](http://threatexpress.com)
+http://threatexpress.com/2018/01/hostenum-updates-usage/
+http://threatexpress.com/2017/05/invoke-hostenum/

