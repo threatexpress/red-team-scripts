@@ -5,12 +5,12 @@ class Module:
     def __init__(self, mainMenu, params=[]):
 
         self.info = {
-            'Name': 'Invoke-HostEnum',
+            'Name': 'HostEnum',
 
             'Author': ['@andrewchiles'],
 
             'Description': ('Performs detailed enumeration of the local system in the current user content.' 
-                            'Optionaly performs some basic Windows Domain enumeration.'),
+                            'Optionaly performs Privesc checks and basic Windows Domain enumeration.'),
 
             'Background' : True,
 
@@ -25,7 +25,7 @@ class Module:
             'MinLanguageVersion': '2',
             
             'Comments': [
-                'https://github.com/minisllc/red-team-scripts'
+                'https://github.com/threatexpress/red-team-scripts'
             ]
         }
 
@@ -38,13 +38,28 @@ class Module:
                 'Required'      :   True,
                 'Value'         :   ''
             },
-            'Domain' : {
-                'Description'   :   'Perform additional Windows Domain enumeration functions',
+            'Local' : {
+                'Description'   :   'Perform local Windows enumeration functions.',
                 'Required'      :   False,
                 'Value'         :   ''
             },
-            'Path' : {
-                'Description'   :   'Location on the target to write output to as an HTML formatted file (i.e. C:\\temp).'
+            'Domain' : {
+                'Description'   :   'Perform additional Windows Domain enumeration functions.',
+                'Required'      :   False,
+                'Value'         :   ''
+            },
+            'Privesc' : {
+                'Description'   :   'Perform additional privilege escalation checks (PowerUp).',
+                'Required'      :   False,
+                'Value'         :   ''
+            },
+            'Quick' : {
+                'Description'   :   'Perform a quick system survey.',
+                'Required'      :   False,
+                'Value'         :   ''
+            },
+            'HTMLReport' : {
+                'Description'   :   'Create an HTML formatted report in current directory.'
                                     'Output filename convention is YYYYMMDD_HHMMSS_HOSTNAME.html',
                 'Required'      :   False,
                 'Value'         :   ''
@@ -65,7 +80,7 @@ class Module:
     def generate(self):
 
         # read in the common module source code
-        moduleSource = self.mainMenu.installPath + "/data/module_source/situational_awareness/host/Invoke-HostEnum.ps1"
+        moduleSource = self.mainMenu.installPath + "/data/module_source/situational_awareness/host/HostEnum.ps1"
 
         try:
             f = open(moduleSource, 'r')
@@ -78,7 +93,7 @@ class Module:
 
         script = moduleCode
 
-        script += "Invoke-HostEnum -Local "
+        script += "Invoke-HostEnum "
 
         # add any arguments to the end execution of the script
         for option,values in self.options.iteritems():

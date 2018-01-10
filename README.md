@@ -1,7 +1,7 @@
 # Red Team Scripts
 ---
 Red Team Scripts is a collection of red teaming related tools, scripts, techniques, and notes developed or discovered over time during engagements. 
-Related tool release blog posts can be found at [Threat Express](http://threatexpress.com) an Information Security Blog by MINIS.
+Related tool release blog posts can be found at [Threat Express](http://threatexpress.com) an Information Security and Red Teaming Blog
 
 ## Situational Awareness
 
@@ -9,7 +9,7 @@ Related tool release blog posts can be found at [Threat Express](http://threatex
 
 ### `Invoke-HostEnum -Local`
 
-**Author:** Andrew Chiles (@andrewchiles) with code by Joe Bialek, rvrsh3ll, Beau Bullock, and Tim Medin
+**Author:** Andrew Chiles (@andrewchiles) with code by harmj0y, Joe Bialek, rvrsh3ll, Beau Bullock, Tim Medin
 
 A PowerShell v2.0 compatible script comprised of multiple system enumeration / situational awareness techniques collected over time. If system is a member of a Windows domain, it can also perform limited domain enumeration with the -Domain switch. However, domain enumeration is significantly limited with the intention that PowerView or BoodHound could also be used.
 
@@ -38,6 +38,7 @@ Several functions are inspired or pulled directly from the following projects an
 - [Get-ComputerDetails](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/Get-ComputerDetails.ps1) from Joe Bialek in PowerSploit 
 - [Get-BrowserInformation](https://github.com/rvrsh3ll/Misc-Powershell-Scripts/blob/master/Get-BrowserData.ps1) by rvrsh3ll 
 - [Get-UserSPNS](https://github.com/nidem/kerberoast) by Tim Medin 
+- [PowerUp](https://github.com/PowerShellMafia/PowerSploit/blob/master/Privesc/PowerUp.ps1) by @harmj0y
 
 ## Usage
 
@@ -49,4 +50,4 @@ This project and all individual scripts are under the BSD 3-Clause license
 
 ## Links
 
-[www.minis.io](http://www.minis.io)
+[threatexpress.com](http://threatexpress.com)
