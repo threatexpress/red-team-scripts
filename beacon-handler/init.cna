@@ -1,0 +1,135 @@
+# Init scripts sets global variables and loads other scripts
+
+elog("
+###################################################################
+ CobaltStrike Aggressor Script © Joe Vest, Andrew Chiles 2018                                  
+ Author:      Joe Vest, Andrew Chiles
+ Description: Init aggressor script. Sets global variables and loads other scripts
+ Version: CobaltStrike 3.10
+###################################################################");
+
+# Aggressor Script Global Variables
+elog('Loading init.cna...')
+
+##################################################################################
+### _GLOBAL SCRIPT VARIABLES_
+
+#global('$g_ListenerName');      
+global('$g_initialSleep');                      
+global('$g_initialJitter');             
+global('$g_deadThreshold');     
+global('$g_basePath');                  
+global('$g_adminMigrationBin');
+global('$g_userMigrationBin');
+global('$g_enableMigration');
+
+$g_initialSleep      = 60;              # Sleep set at inital beacon
+$g_initialJitter     = 20;                  # Jitter set at inital beacon
+$g_deadThreshold     = int(900 * 1000);     # Time use to mark when a beacon is considered dead
+$g_basePath          = "./";                # Base path for scripts
+$g_adminMigrationBin = 'winlogon.exe';  # Binary used for Admin level migration
+$g_userMigrationBin  = 'explorer.exe';  # Binary used for User level migration
+$g_enableMigration   = false;           # Enable or Disable Migration 
+
+## Update Globals via script command
+
+command setg_InitialSleep {
+    $g_initialSleep = int($1);
+}
+
+command setg_InitialJitter {
+    $g_initialJitter = int($1);
+}
+
+#command setg_ListenerName {
+#    $g_ListenerName = $1;
+#}
+
+command setg_deadThreshold {
+    $g_deadThreshold = int($1 * 1000);
+}
+
+command setg_basePath {
+    $g_basePath = $1;
+}
+
+command setg_userMigrationBin {
+    $g_userMigrationBin = $1;
+}
+
+command setg_adminMigrationBin {
+    $g_adminMigrationBin = $1;
+}
+
+command setg_enableSlackNotification {
+    if ($1 eq 'true') {
+        $g_enableSlackNotification  = true;           
+    } else {
+        $g_enableSlackNotification  = false;           
+    }
+}
+
+command setg_enableMigration {
+    if ($1 eq 'true') {
+        $g_enableMigration  = true;           
+    } else {
+        $g_enableMigration  = false;           
+    }
+}
+
+command showGlobals {
+    println('____________________________________________________________');
+    println('BEACON HANDLER GLOBAL VARIABLES')
+    println('------------------------------------------------------------');
+
+    println('InitialSleep:           ' . $g_initialSleep . " (" . int($g_initialSleep / 60) . " minutes)");                        
+    println('InitialJitter:          ' . $g_initialJitter . " %");             
+    println('Dead Threshold(ms):     ' . $g_deadThreshold . " (" . int($g_deadThreshold / 1000) / 60 . " minutes)");     
+    println('Script Base Path:       ' . $g_basePath);                  
+    println('Admin Migration Binary: ' . $g_adminMigrationBin);
+    println('User Migration Binary:  ' . $g_userMigrationBin);
+
+    if ($g_enableMigration) {
+        println('Enable Migration:       true');
+    } else {
+        println('Enable Migration:       false');
+    }
+
+    println('____________________________________________________________');
+}
+
+##################################################################################
+### LOAD EXTERNAL SCRIPTS
+
+println('Loading helper scripts ...');
+
+println("\t" . $g_basePath . "handler.cna");
+include(script_resource("./handler.cna"));
+println("");
+println('Verify all scripts loaded in the Event Log.');
+
+
+##################################################################################
+### _GLOBAL FUNCTIONS_
+
+# Check if beacon is running as Admin
+sub isAdmin {
+    $a = '*';
+    if ($a isin (beacon_info($1, "user"))) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+
+# Show Info on all beacons
+command beacons {
+    local('$entry $key $value');
+    foreach $entry (beacons()) {
+        println("== " . $entry['id'] . " ==");
+        foreach $key => $value ($entry) {
+            println("$[20]key : $value");
+        }
+    }
+}

