@@ -5,10 +5,21 @@ https://github.com/threatexpress/red-team-scripts
 
 Future Additions
 ------------------
-
- Check Windows Update source, is WSUS configured
+ Re-work registry checking functions similar to Get-HostProfile
  LLMNR and NetBIOS over TCP/IP Settings
  RDP Settings HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server
+ StickyNotes
+ Win10 - %UserProfile%\AppData\Local\Packages\Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe\LocalState\plum.sqlite
+ Win7 - C:\Users\Username\AppData\Roaming\Microsoft\StickyNotes\StickyNotes.snt
+ Tanium https://docs.tanium.com/client/client/troubleshooting.html
+ 64-bit C:\Program Files (x86)\Tanium\Tanium Client\TaniumClient.exe
+ 32-bit C:\Program Files\Tanium\Tanium Client\TaniumClient.exe
+ 32-bit HKEY_LOCAL_MACHINE\Software\Tanium\Tanium Client
+ 64-bit  HKEY_LOCAL_MACHINE\Software\Wow6432Node\Tanium\Tanium Client
+ Windows Event Forwarding registry::HKLM\Software\Policies\Microsoft\Windows\EventLog\EventForwarding\SubscriptionManager"
+  Add https://github.com/sekirkity/BrowserGather.git 
+  User IdleTime https://stackoverflow.com/questions/15845508/get-idle-time-of-machine
+  
 #>
 
 #requires -version 2
@@ -19,7 +30,7 @@ function Invoke-HostEnum {
 
     Performs local host and/or domain enumeration for situational awareness
 
-    Author: Andrew Chiles (@andrewchiles) leveraging functions by @mattifestation, @harmj0y, Joe Bialek, rvrsh3ll, Beau Bullock, and Tim Medin
+    Author: Andrew Chiles (@andrewchiles) leveraging functions by @mattifestation, @harmj0y, @tifkin_, Joe Bialek, rvrsh3ll, Beau Bullock, and Tim Medin
     License: BSD 3-Clause
     Depenencies: None
     Requirements: None
@@ -221,17 +232,15 @@ TR:Nth-Child(Even) {Background-Color: #dddddd;}
         $Results | Format-Table -auto -wrap
     
         "`n[+] Local Administrators:`n"
-        $Results = Get-WmiObject win32_groupuser | Where-Object { $_.GroupComponent -match 'administrators' -and ($_.GroupComponent -match "Domain=`"$env:COMPUTERNAME`"")} | ForEach-Object {[wmi]$_.PartComponent } |
-            Select-Object Name, Domain, SID, AccountType, PasswordExpires, Disabled, Lockout, Status, Description
-        $Results | Format-Table -auto -wrap
+        $Results = Get-WmiObject -Class Win32_groupuser -Filter "GroupComponent=""Win32_Group.Domain='$env:COMPUTERNAME',Name='Administrators'""" |
+        % {[wmi]$_.PartComponent} | Select-Object Name, Domain, SID, AccountType, PasswordExpires, Disabled, Lockout, Status, Description
         
-        # Local Groups
         "`n[+] Local Groups:`n"
         $Results = Get-WmiObject -Class Win32_Group -Filter "Domain='$($env:ComputerName)'" | Select-Object Name,SID,Description
         $Results | Format-Table -auto -wrap
 
         "`n[+] Group Membership for ($($env:username))`n"
-        $Results = Get-GroupMembership | Sort-Object SID
+        $Results = Get-UserGroupMembership | Sort-Object SID
         $Results | Format-Table -Auto
         
     }
@@ -322,7 +331,7 @@ TR:Nth-Child(Even) {Background-Color: #dddddd;}
         $Results = Get-WmiObject -Class Win32_MappedLogicalDisk | Select-Object Name, Caption, VolumeName, FreeSpace, ProviderName, FileSystem
         $Results | Format-Table -auto
         If ($HTMLReport) {
-            $Results | ConvertTo-HTML -Fragment -PreContent "<H2>Mapped Network Drives Drives</H2>" | Out-File -Append $HTMLReportFile
+            $Results | ConvertTo-HTML -Fragment -PreContent "<H2>Mapped Network Drives</H2>" | Out-File -Append $HTMLReportFile
         }
             
         ## Local Network Configuration
@@ -418,9 +427,10 @@ TR:Nth-Child(Even) {Background-Color: #dddddd;}
         
         # Local Administrators
         "`n[+] Local Administrators:`n"
-        $Results = Get-WmiObject win32_groupuser | Where-Object { $_.GroupComponent -match 'administrators' -and ($_.GroupComponent -match "Domain=`"$env:COMPUTERNAME`"")} | ForEach-Object {[wmi]$_.PartComponent } |
-            Select-Object Name, Domain, SID, AccountType, PasswordExpires, Disabled, Lockout, Status, Description
-        $Results | Format-Table -auto
+        $Results = Get-WmiObject -Class Win32_groupuser -Filter "GroupComponent=""Win32_Group.Domain='$env:COMPUTERNAME',Name='Administrators'""" |
+        % {[wmi]$_.PartComponent} | Select-Object Name, Domain, SID, AccountType, PasswordExpires, Disabled, Lockout, Status, Description
+        
+        $Results | Format-Table -auto -wrap
         If ($HTMLReport) {
             $Results | ConvertTo-HTML -Fragment -PreContent "<H2>Local Administrators</H2>" | Out-File -Append $HTMLReportFile
         }
@@ -433,6 +443,38 @@ TR:Nth-Child(Even) {Background-Color: #dddddd;}
             $Results | ConvertTo-HTML -Fragment -PreContent "<H2>Local Groups</H2>" | Out-File -Append $HTMLReportFile
         }
         
+        # Fix this
+        # Local Group Membership (Work in progress) Need to fix regex parsing
+        "`n[+] Local Group Membership:`n"
+        $Groups = Get-WmiObject -Class Win32_Group -Filter "Domain='$($env:ComputerName)'" | Select-Object -expand Name
+        
+        Foreach ($Group in $Groups) {
+            $results = $Null
+            $Results = Get-WmiObject -Class Win32_groupuser -Filter "GroupComponent=""Win32_Group.Domain='$env:COMPUTERNAME',Name='$Group'""" | % {[wmi]$_.PartComponent} | Select-Object Name, Domain, SID, AccountType, PasswordExpires, Disabled, Lockout, Status, Description
+            "[+] $Group - Members"
+            $Results | Format-Table -auto
+            If ($HTMLReport) {
+                $Results | ConvertTo-HTML -Fragment -PreContent "<H2>Local Group Membership - $Group</H2>" | Out-File -Append $HTMLReportFile
+            }
+        }
+        #$Results = $Groups | % {Get-WmiObject -Class Win32_GroupUser -Filter "GroupComponent=""Win32_Group.Domain='$env:COMPUTERNAME',Name='$_'""" |
+        #% {[wmi]$_.PartComponent} | Select-Object Name, Domain, SID, AccountType, PasswordExpires, Disabled, Lockout, Status, Description}
+
+        # Explicit Logon Events (Requires admin)
+        "`n[+] Explicit Logon Events (4648) - Last 10 Days:`n"
+        $Results = Get-ExplicitLogonEvents -Days 10 | Select TimeCreated,TargetUserName,TargetDomainName,ProcessName,SubjectUserName,SubjectDomainName | Sort-Object TimeCreated
+        $Results | Format-Table -auto -wrap
+        If ($HTMLReport) {
+                $Results | ConvertTo-HTML -Fragment -PreContent "<H2>Explicit Logon Events (4648) - Last 10 Days</H2>" | Out-File -Append $HTMLReportFile
+            }
+        # Logon Events (Requires admin)
+        "`n[+] Logon Events (4624) - Last 200 Events:`n"
+        # Filter out NT Authority and Machine logons
+        $Results = Get-LogonEvents -MaxEvents 200  | Where-Object {$_.Target -NotLike "NT AUTHORITY*" -and $_.Target -NotLike "*$"} |Sort-Object TimeCreated
+        $Results | Format-Table -auto -wrap
+        If ($HTMLReport) {
+                $Results | ConvertTo-HTML -Fragment -PreContent "<H2>Logon Events (4624) - Last 200 Events</H2>" | Out-File -Append $HTMLReportFile
+            }
         
         ## AV Products
         #########################
@@ -452,7 +494,7 @@ TR:Nth-Child(Even) {Background-Color: #dddddd;}
         }
         
         # If McAfee is installed then pull some recent logs
-        If ($Results.displayName -like "*mcafee*") {
+        If ($Results.displayName -Match "mcafee") {
             $Results = Get-McafeeLogs
             $Results |Format-List
             If ($HTMLReport) {
@@ -480,7 +522,7 @@ TR:Nth-Child(Even) {Background-Color: #dddddd;}
         ############################
         # Group Membership for Current User
         "`n[+] Group Membership - $($Env:UserName)`n"
-        $Results = Get-GroupMembership | Sort-Object SID
+        $Results = Get-UserGroupMembership | Sort-Object SID
         $Results | Format-Table -Auto
         If ($HTMLReport) {
             $Results | ConvertTo-HTML -Fragment -PreContent "<H2>Group Membership - $($env:username)</H2>"| Out-File -Append $HTMLReportFile
@@ -519,15 +561,7 @@ TR:Nth-Child(Even) {Background-Color: #dddddd;}
         If ($HTMLReport) {
             ConvertTo-HTML -Fragment -PreContent "<H2>Clipboard Contents - $($Env:UserName)</H2><table><tr><td><PRE>$Results</PRE></td></tr></table>"| Out-File -Append $HTMLReportFile
         }
-        
-        # Commented out by default because the log parsing can take a REALLY long time on some hosts
-        #$Results += Format-HTMLTable "Interesting Windows Logs" (Get-ComputerDetails)
-        #"`n`n[+] Interesting Windows Logs`n"
-        #$Results = Get-ComputerDetails
-        #$Results
-        #If ($HTMLReport) {
-        #   $Results | ConvertTo-HTML -Head $Header -Body "<H2>Interesting Windows Logs</H2>" | Out-File -Append $HTMLReportFile
-        #}
+    
             
     }
 
@@ -598,7 +632,8 @@ TR:Nth-Child(Even) {Background-Color: #dddddd;}
                 
             # Get User SPNS
             "`n[+] User Account SPNs`n"
-            $Results = Get-UserSPNS -UniqueAccounts
+            $Results = $null
+            $Results = Get-UserSPNS -UniqueAccounts | Sort-Object PasswordLastSet -Ascending -Unique
             $Results | Format-Table -auto
             If ($HTMLReport) {
                 $Results | ConvertTo-HTML -Fragment -PreContent "<H2>User Account SPNs</H2>" | Out-File -Append $HTMLReportFile
@@ -648,6 +683,7 @@ Gets basic system information from the host
     $uptime = (Get-Date).Subtract($uptime)
     $uptime = ("{0} Days, {1} Hours, {2} Minutes, {3} Seconds" -f ($uptime.Days, $uptime.Hours, $uptime.Minutes, $uptime.Seconds))
     $date = Get-Date
+    $IsHighIntegrity = [bool]([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
     
     $SysInfoHash = @{            
         HOSTNAME                = $ENV:COMPUTERNAME                         
@@ -662,15 +698,24 @@ Gets basic system information from the host
         DOMAIN                  = (GWMI Win32_ComputerSystem).domain            
         LOGONSERVER             = $ENV:LOGONSERVER          
         PSVERSION               = $PSVersionTable.PSVersion.ToString()
+        PSCOMPATIBLEVERSIONS    = ($PSVersionTable.PSCompatibleVersions) -join ', '
         PSSCRIPTBLOCKLOGGING    = If((Get-ItemProperty HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging -EA 0).EnableScriptBlockLogging -eq 1){"Enabled"} Else {"Disabled"}
         PSTRANSCRIPTION         = If((Get-ItemProperty HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\Transcription -EA 0).EnableTranscripting -eq 1){"Enabled"} Else {"Disabled"}
         PSTRANSCRIPTIONDIR      = (Get-ItemProperty HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\Transcription -EA 0).OutputDirectory
+        PSMODULELOGGING         = If((Get-ItemProperty HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ModuleLogging -EA 0).EnableModuleLogging -eq 1){"Enabled"} Else {"Disabled"}
+        LSASSPROTECTION         = If((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\Lsa -EA 0).RunAsPPL -eq 1){"Enabled"} Else {"Disabled"}
+        LAPS                    = If((Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft Services\AdmPwd" -EA 0).AdmPwdEnabled -eq 1){"Enabled"} Else {"Disabled"}
+        UAC                     = If((Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System -EA 0).EnableLUA -eq 1){"Enabled"} Else {"Disabled"}
+        # LocalAccountTokenFilterPolicy = 1 disables local account token filtering
+        UACTOKENFILTERING       = If((Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System -EA 0).LocalAccountTokenFilterPolicy -eq 1){"Disabled (PTH likely w/ local admins)"} Else {"Enabled"}
+        UACFILTERADMINTOKEN     = If((Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System -EA 0).FilterAdministratorToken -eq 1){"Enabled (RID500 protected)"} Else {"Disabled"}
+        HIGHINTEGRITY           = $IsHighIntegrity
+        DENYRDPCONNECTIONS      = [bool](Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -EA 0).FDenyTSConnections
     }      
                 
     # PS feels the need to randomly re-order everything when converted to an object so let's presort
-    New-Object -TypeName PSobject -Property $SysInfoHash | Select-Object Hostname, OS, Architecture, "Date(UTC)", "Date(Local)", InstallDate, UpTime, IPAddresses, Domain, Username, LogonServer, PSVersion, PSScriptBlockLogging, PSTranscription, PSTranscriptionDir
+    New-Object -TypeName PSobject -Property $SysInfoHash | Select-Object Hostname, OS, Architecture, "Date(UTC)", "Date(Local)", InstallDate, UpTime, IPAddresses, Domain, Username, LogonServer, PSVersion, PSCompatibleVersions, PSScriptBlockLogging, PSTranscription, PSTranscriptionDir, PSModuleLogging, LSASSProtection, LAPS, UAC, UACTOKENFILTERING, UACFILTERADMINTOKEN, HIGHINTEGRITY
 }
-
     
 function Get-ProcessInfo() {
 <#
@@ -694,7 +739,7 @@ Gets detailed process information via WMI
     Return $procs
 }
     
-function Get-GroupMembership {
+function Get-UserGroupMembership {
 <#
 .SYNOPSIS
 
@@ -720,7 +765,7 @@ function Get-ActiveTCPConnections {
 <#
 .SYNOPSIS
 
-Enumerates active TCP connections. 
+Enumerates active TCP connections for IPv4 and IPv6
 Adapted from Beau Bullock's TCP code
 https://raw.githubusercontent.com/dafthack/HostRecon/master/HostRecon.ps1
 
@@ -803,17 +848,36 @@ Pulls potentially interesting registry keys
 
     # HKLM SNMP Keys
     "`n[+] SNMP community strings:`n"
-    Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\services\snmp\parameters\validcommunities" | Format-Table -auto | Out-String
+    Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\services\snmp\parameters\validcommunities" | Format-List | Out-String
     
     # HKCU SNMP Keys 
     "`n[+] SNMP community strings for current user:`n"
-    Get-ItemProperty "HKCU:\SYSTEM\CurrentControlSet\services\snmp\parameters\validcommunities"| Format-Table -auto |Out-String
+    Get-ItemProperty "HKCU:\SYSTEM\CurrentControlSet\services\snmp\parameters\validcommunities"| Format-List |Out-String
     
     # Putty Saved Session Keys
     "`n[+] Putty saved sessions:`n"
-    Get-ItemProperty "HKCU:\Software\SimonTatham\PuTTY\Sessions\*" |Format-Table -auto | Out-String
+    Get-ItemProperty "HKCU:\Software\SimonTatham\PuTTY\Sessions\*" |Format-List | Out-String
     
+    "`n[+] Windows Update Settings:`n"
+    Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" |Format-List | Out-String
+
+    "`n[+] Kerberos Settings:`n"
+    Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters" |Format-List | Out-String
+
+    "`n[+] Wdigest Settings:`n"
+    Get-ItemProperty "HKLM:\System\CurrentControlSet\Control\SecurityProviders\WDigest" |Format-List | Out-String
+
+    "`n[+] Windows Installer Settings:`n"
+    Get-ItemProperty "HKLM:\Software\Policies\Microsoft\Windows\Installer" |Format-List | Out-String
+    Get-ItemProperty "HKCU:\Software\Policies\Microsoft\Windows\Installer" |Format-List | Out-String
+
+    "`n[+] Windows Policy Settings:`n"
+    Get-ChildItem registry::HKEY_LOCAL_MACHINE\Software\Policies -recurse | Out-String
+    Get-ChildItem registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies -recurse | Out-String
+    Get-ChildItem registry::HKEY_CURRENT_USER\Software\Policies -recurse | Out-String
+    Get-ChildItem registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Policies -recurse | Out-String
 }
+
 
 function Get-IndexedFiles {
 <#
@@ -859,36 +923,40 @@ Local filesystem enumeration
     Write-Verbose "Enumerating interesting files..."
 
     # Get Indexed files containg $searchStrings (Experimental), edit this to desired list of "dirty words"
-    $SearchStrings = "*secret*","*creds*","*credential*","*.vmdk","*confidential*","*proprietary*","*pass*","*credentials*","web.config","KeePass.config*","*.kdbx","*.key","tnsnames.ora"
+    $SearchStrings = "*secret*","*creds*","*credential*","*.vmdk","*confidential*","*proprietary*","*pass*","*credentials*","web.config","KeePass.config*","*.kdbx","*.key","tnsnames.ora","ntds.dit","*.dll.config","*.exe.config"
     $IndexedFiles = Foreach ($String in $SearchStrings) {Get-IndexedFiles $string}
     
     "`n[+] Indexed File Search:`n"
     "`n[+] Search Terms ($SearchStrings)`n`n"
-    $IndexedFiles |Format-List |Out-String
+    $IndexedFiles |Format-List |Out-String -width 300
     
     # Get Top Level file listing of all drives
     "`n[+] All 'FileSystem' Drives - Top Level Listing:`n"
-    Get-PSdrive -psprovider filesystem |ForEach-Object {gci $_.Root} |Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String
+    Get-PSdrive -psprovider filesystem |ForEach-Object {gci $_.Root} |Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String -width 300
     
     # Get Program Files
     "`n[+] System Drive - Program Files:`n"
-    GCI "$ENV:ProgramFiles\" | Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String
+    GCI "$ENV:ProgramFiles\" | Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String -width 300
     
     # Get Program Files (x86)
     "`n[+] System Drive - Program Files (x86):`n"
-    GCI "$ENV:ProgramFiles (x86)\" | Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String
+    GCI "$ENV:ProgramFiles (x86)\" | Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String -width 300
     
     # Get %USERPROFILE%\Desktop top level file listing
     "`n[+] Current User Desktop:`n"
-    GCI $ENV:USERPROFILE\Desktop | Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String
+    GCI $ENV:USERPROFILE\Desktop | Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String -width 300
     
     # Get %USERPROFILE%\Documents top level file listing
     "`n[+] Current User Documents:`n"
-    GCI $ENV:USERPROFILE\Documents | Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String
+    GCI $ENV:USERPROFILE\Documents | Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String -width 300
     
     # Get Files in the %USERPROFILE% directory with certain extensions or phrases
     "`n[+] Current User Profile (*pass*,*diagram*,*.pdf,*.vsd,*.doc,*docx,*.xls,*.xlsx,*.kdbx,*.key,KeePass.config):`n"
-    GCI $ENV:USERPROFILE\ -recurse -include *pass*,*diagram*,*.pdf,*.vsd,*.doc,*docx,*.xls,*.xlsx,*.kdbx,*.key,KeePass.config | Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String
+    GCI $ENV:USERPROFILE\ -recurse -include *pass*,*diagram*,*.pdf,*.vsd,*.doc,*docx,*.xls,*.xlsx,*.kdbx,*.key,KeePass.config | Select-Object Fullname,LastWriteTimeUTC,LastAccessTimeUTC,Length | Format-Table -auto | Out-String -width 300
+
+    # Get Powershell History
+    "`n[+] Current User Powershell Console History:`n`n"
+    (Get-Content $ENV:APPDATA\Microsoft\Windows\PowerShell\PSReadline\ConsoleHost_history.txt -EA 0 |select -last 50) -join "`r`n"
     
     # Get Host File
     "`n[+] Contents of Hostfile:`n`n"
@@ -998,6 +1066,8 @@ function Get-AVProcesses {
     $avlookuptable = @{
                 #explorer                   = "Explorer (testing)"
                 mcshield                    = "McAfee AV"
+                FrameworkService            = "McAfee AV"
+                naPrdMgr                    = "McAfee AV"
                 windefend                   = "Windows Defender AV"
                 MSASCui                     = "Windows Defender AV"
                 msmpeng                     = "Windows Defender AV"
@@ -1006,6 +1076,8 @@ function Get-AVProcesses {
                 savservice                  = "Sophos AV"
                 TMCCSF                      = "Trend Micro AV"
                 "symantec antivirus"        = "Symantec AV"
+                ccSvcHst                    = "Symantec Endpoint Protection"
+                TaniumClient                = "Tanium"
                 mbae                        = "MalwareBytes Anti-Exploit"
                 parity                      = "Bit9 application whitelisting"
                 cb                          = "Carbon Black behavioral analysis"
@@ -1015,7 +1087,8 @@ function Get-AVProcesses {
                 ossec                       = "OSSEC intrusion detection"
                 TmPfw                       = "Trend Micro firewall"
                 dgagent                     = "Verdasys Digital Guardian DLP"
-                kvoop                       = "Unknown DLP process"
+                kvoop                       = "Forcepoint and others"
+                xagt                        = "FireEye Endpoint Agent"
             }
             
     ForEach ($process in $processes) {
@@ -1060,6 +1133,12 @@ Enumerates admininistrator type accounts within the domain using code adapted fr
         [Array]$MemberNames = $Members | ForEach{([ADSI]$_).InvokeGet("Name")}
         "`n[+] Schema Admins:`n"
         $MemberNames
+
+        $DAgroup = ([adsi]"WinNT://$domain/Administrators,group")
+        $Members = @($DAgroup.psbase.invoke("Members"))
+        [Array]$MemberNames = $Members | ForEach{([ADSI]$_).InvokeGet("Name")}
+        "`n[+] Administrators:`n"
+        $MemberNames
     }
     Catch {
         Write-Verbose "[-] Error connecting to the domain while retrieving group members."    
@@ -1096,587 +1175,6 @@ $Domain = [System.Directoryservices.Activedirectory.Domain]::GetCurrentDomain()
             Write-Verbose "[-] Error connecting to the domain while retrieving password policy."    
     }
 }
-    
-# PowerSploit Functions with modifications
-
-function Get-ComputerDetails {
-<#
-.SYNOPSIS
-
-This script is used to get useful information from a computer.
-
-Function: Get-ComputerDetails
-Author: Joe Bialek, Twitter: @JosephBialek
-Required Dependencies: None
-Optional Dependencies: None
-
-.DESCRIPTION
-
-This script is used to get useful information from a computer. Currently, the script gets the following information:
--Explicit Credential Logons (Event ID 4648)
--Logon events (Event ID 4624)
--AppLocker logs to find what processes are created
--PowerShell logs to find PowerShell scripts which have been executed
--RDP Client Saved Servers, which indicates what servers the user typically RDP's in to
-
-.PARAMETER ToString
-
-Switch: Outputs the data as text instead of objects, good if you are using this script through a backdoor.
-    
-.EXAMPLE
-
-Get-ComputerDetails
-Gets information about the computer and outputs it as PowerShell objects.
-
-Get-ComputerDetails -ToString
-Gets information about the computer and outputs it as raw text.
-
-.NOTES
-This script is useful for fingerprinting a server to see who connects to this server (from where), and where users on this server connect to. 
-You can also use it to find Powershell scripts and executables which are typically run, and then use this to backdoor those files.
-
-.LINK
-
-Blog: http://clymb3r.wordpress.com/
-Github repo: https://github.com/clymb3r/PowerShell
-
-#>
-
-    Param(
-        [Parameter(Position=0)]
-        [Switch]
-        $ToString
-    )
-    Write-Verbose "Enumerating Event Logs for interesting entries (Get-ComputerDetails)..."
-
-    # Added Try/Catch to prevent parent from exiting if we don't have rights to read the security log. -EA preferences didn't make a difference.
-    # This was only an issue when executed through Empire
-    Try {
-        $SecurityLog = Get-EventLog -LogName Security
-        $Filtered4624 = Find-4624Logons $SecurityLog
-        $Filtered4648 = Find-4648Logons $SecurityLog
-    }
-    Catch{}
-    
-    $AppLockerLogs = Find-AppLockerLogs
-    $PSLogs = Find-PSScriptsInPSAppLog
-    $RdpClientData = Find-RDPClientConnections
-
-    if ($ToString)
-    {
-        Write-Output "`nEvent ID 4624 (Logon):"
-        Write-Output $Filtered4624.Values
-        Write-Output "`nEvent ID 4648 (Explicit Credential Logon):"
-        Write-Output $Filtered4648.Values
-        Write-Output "`nAppLocker Process Starts:"
-        Write-Output $AppLockerLogs.Values
-        Write-Output "`nPowerShell Script Executions:"
-        Write-Output $PSLogs.Values
-        Write-Output "`nRDP Client Data:"
-        Write-Output $RdpClientData.Values
-    }
-    else
-    {
-        $Properties = @{
-            LogonEvent4624 = $Filtered4624.Values
-            LogonEvent4648 = $Filtered4648.Values
-            AppLockerProcessStart = $AppLockerLogs.Values
-            PowerShellScriptStart = $PSLogs.Values
-            RdpClientData = $RdpClientData.Values
-        }
-
-        $ReturnObj = New-Object PSObject -Property $Properties
-        return $ReturnObj
-    }
-}
-
-
-function Find-4648Logons
-{
-<#
-.SYNOPSIS
-
-Retrieve the unique 4648 logon events. This will often find cases where a user is using remote desktop to connect to another computer. It will give the 
-the account that RDP was launched with and the account name of the account being used to connect to the remote computer. This is useful
-for identifying normal authenticaiton patterns. Other actions that will trigger this include any runas action.
-
-Function: Find-4648Logons
-Author: Joe Bialek, Twitter: @JosephBialek
-Required Dependencies: None
-Optional Dependencies: None
-
-.DESCRIPTION
-
-Retrieve the unique 4648 logon events. This will often find cases where a user is using remote desktop to connect to another computer. It will give the 
-the account that RDP was launched with and the account name of the account being used to connect to the remote computer. This is useful
-for identifying normal authenticaiton patterns. Other actions that will trigger this include any runas action.
-
-.EXAMPLE
-
-Find-4648Logons
-Gets the unique 4648 logon events.
-
-.NOTES
-
-.LINK
-
-Blog: http://clymb3r.wordpress.com/
-Github repo: https://github.com/clymb3r/PowerShell
-#>
-    Param(
-        $SecurityLog
-    )
-
-    $ExplicitLogons = $SecurityLog | Where {$_.InstanceID -eq 4648}
-    $ReturnInfo = @{}
-
-    foreach ($ExplicitLogon in $ExplicitLogons)
-    {
-        $Subject = $false
-        $AccountWhosCredsUsed = $false
-        $TargetServer = $false
-        $SourceAccountName = ""
-        $SourceAccountDomain = ""
-        $TargetAccountName = ""
-        $TargetAccountDomain = ""
-        $TargetServer = ""
-        foreach ($line in $ExplicitLogon.Message -split "\r\n")
-        {
-            if ($line -cmatch "^Subject:$")
-            {
-                $Subject = $true
-            }
-            elseif ($line -cmatch "^Account\sWhose\sCredentials\sWere\sUsed:$")
-            {
-                $Subject = $false
-                $AccountWhosCredsUsed = $true
-            }
-            elseif ($line -cmatch "^Target\sServer:")
-            {
-                $AccountWhosCredsUsed = $false
-                $TargetServer = $true
-            }
-            elseif ($Subject -eq $true)
-            {
-                if ($line -cmatch "\s+Account\sName:\s+(\S.*)")
-                {
-                    $SourceAccountName = $Matches[1]
-                }
-                elseif ($line -cmatch "\s+Account\sDomain:\s+(\S.*)")
-                {
-                    $SourceAccountDomain = $Matches[1]
-                }
-            }
-            elseif ($AccountWhosCredsUsed -eq $true)
-            {
-                if ($line -cmatch "\s+Account\sName:\s+(\S.*)")
-                {
-                    $TargetAccountName = $Matches[1]
-                }
-                elseif ($line -cmatch "\s+Account\sDomain:\s+(\S.*)")
-                {
-                    $TargetAccountDomain = $Matches[1]
-                }
-            }
-            elseif ($TargetServer -eq $true)
-            {
-                if ($line -cmatch "\s+Target\sServer\sName:\s+(\S.*)")
-                {
-                    $TargetServer = $Matches[1]
-                }
-            }
-        }
-
-        #Filter out logins that don't matter
-        if (-not ($TargetAccountName -cmatch "^DWM-.*" -and $TargetAccountDomain -cmatch "^Window\sManager$"))
-        {
-            $Key = $SourceAccountName + $SourceAccountDomain + $TargetAccountName + $TargetAccountDomain + $TargetServer
-            if (-not $ReturnInfo.ContainsKey($Key))
-            {
-                $Properties = @{
-                    LogType = 4648
-                    LogSource = "Security"
-                    SourceAccountName = $SourceAccountName
-                    SourceDomainName = $SourceAccountDomain
-                    TargetAccountName = $TargetAccountName
-                    TargetDomainName = $TargetAccountDomain
-                    TargetServer = $TargetServer
-                    Count = 1
-                    #Times = @($ExplicitLogon.TimeGenerated)
-                }
-
-                $ResultObj = New-Object PSObject -Property $Properties
-                $ReturnInfo.Add($Key, $ResultObj)
-            }
-            else
-            {
-                $ReturnInfo[$Key].Count++
-                #$ReturnInfo[$Key].Times += ,$ExplicitLogon.TimeGenerated
-            }
-        }
-    }
-
-    return $ReturnInfo
-}
-
-function Find-4624Logons
-{
-<#
-.SYNOPSIS
-
-Find all unique 4624 Logon events to the server. This will tell you who is logging in and how. You can use this to figure out what accounts do
-network logons in to the server, what accounts RDP in, what accounts log in locally, etc...
-
-Function: Find-4624Logons
-Author: Joe Bialek, Twitter: @JosephBialek
-Required Dependencies: None
-Optional Dependencies: None
-
-.DESCRIPTION
-
-Find all unique 4624 Logon events to the server. This will tell you who is logging in and how. You can use this to figure out what accounts do
-network logons in to the server, what accounts RDP in, what accounts log in locally, etc...
-
-.EXAMPLE
-
-Find-4624Logons
-Find unique 4624 logon events.
-
-.NOTES
-
-.LINK
-
-Blog: http://clymb3r.wordpress.com/
-Github repo: https://github.com/clymb3r/PowerShell
-#>
-    Param (
-        $SecurityLog
-    )
-
-    $Logons = $SecurityLog | Where {$_.InstanceID -eq 4624}
-    $ReturnInfo = @{}
-
-    foreach ($Logon in $Logons)
-    {
-        $SubjectSection = $false
-        $NewLogonSection = $false
-        $NetworkInformationSection = $false
-        $AccountName = ""
-        $AccountDomain = ""
-        $LogonType = ""
-        $NewLogonAccountName = ""
-        $NewLogonAccountDomain = ""
-        $WorkstationName = ""
-        $SourceNetworkAddress = ""
-        $SourcePort = ""
-
-        foreach ($line in $Logon.Message -Split "\r\n")
-        {
-            if ($line -cmatch "^Subject:$")
-            {
-                $SubjectSection = $true
-            }
-            elseif ($line -cmatch "^Logon\sType:\s+(\S.*)")
-            {
-                $LogonType = $Matches[1]
-            }
-            elseif ($line -cmatch "^New\sLogon:$")
-            {
-                $SubjectSection = $false
-                $NewLogonSection = $true
-            }
-            elseif ($line -cmatch "^Network\sInformation:$")
-            {
-                $NewLogonSection = $false
-                $NetworkInformationSection = $true
-            }
-            elseif ($SubjectSection)
-            {
-                if ($line -cmatch "^\s+Account\sName:\s+(\S.*)")
-                {
-                    $AccountName = $Matches[1]
-                }
-                elseif ($line -cmatch "^\s+Account\sDomain:\s+(\S.*)")
-                {
-                    $AccountDomain = $Matches[1]
-                }
-            }
-            elseif ($NewLogonSection)
-            {
-                if ($line -cmatch "^\s+Account\sName:\s+(\S.*)")
-                {
-                    $NewLogonAccountName = $Matches[1]
-                }
-                elseif ($line -cmatch "^\s+Account\sDomain:\s+(\S.*)")
-                {
-                    $NewLogonAccountDomain = $Matches[1]
-                }
-            }
-            elseif ($NetworkInformationSection)
-            {
-                if ($line -cmatch "^\s+Workstation\sName:\s+(\S.*)")
-                {
-                    $WorkstationName = $Matches[1]
-                }
-                elseif ($line -cmatch "^\s+Source\sNetwork\sAddress:\s+(\S.*)")
-                {
-                    $SourceNetworkAddress = $Matches[1]
-                }
-                elseif ($line -cmatch "^\s+Source\sPort:\s+(\S.*)")
-                {
-                    $SourcePort = $Matches[1]
-                }
-            }
-        }
-
-        #Filter out logins that don't matter
-        if (-not ($NewLogonAccountDomain -cmatch "NT\sAUTHORITY" -or $NewLogonAccountDomain -cmatch "Window\sManager"))
-        {
-            $Key = $AccountName + $AccountDomain + $NewLogonAccountName + $NewLogonAccountDomain + $LogonType + $WorkstationName + $SourceNetworkAddress + $SourcePort
-            if (-not $ReturnInfo.ContainsKey($Key))
-            {
-                $Properties = @{
-                    LogType = 4624
-                    LogSource = "Security"
-                    SourceAccountName = $AccountName
-                    SourceDomainName = $AccountDomain
-                    NewLogonAccountName = $NewLogonAccountName
-                    NewLogonAccountDomain = $NewLogonAccountDomain
-                    LogonType = $LogonType
-                    WorkstationName = $WorkstationName
-                    SourceNetworkAddress = $SourceNetworkAddress
-                    SourcePort = $SourcePort
-                    Count = 1
-                    #Times = @($Logon.TimeGenerated)
-                }
-
-                $ResultObj = New-Object PSObject -Property $Properties
-                $ReturnInfo.Add($Key, $ResultObj)
-            }
-            else
-            {
-                $ReturnInfo[$Key].Count++
-                #$ReturnInfo[$Key].Times += ,$Logon.TimeGenerated
-            }
-        }
-    }
-
-    return $ReturnInfo
-}
-
-
-function Find-AppLockerLogs
-{
-<#
-.SYNOPSIS
-
-Look through the AppLocker logs to find processes that get run on the server. You can then backdoor these exe's (or figure out what they normally run).
-
-Function: Find-AppLockerLogs
-Author: Joe Bialek, Twitter: @JosephBialek
-Required Dependencies: None
-Optional Dependencies: None
-
-.DESCRIPTION
-
-Look through the AppLocker logs to find processes that get run on the server. You can then backdoor these exe's (or figure out what they normally run).
-
-.EXAMPLE
-
-Find-AppLockerLogs
-Find process creations from AppLocker logs.
-
-.NOTES
-
-.LINK
-
-Blog: http://clymb3r.wordpress.com/
-Github repo: https://github.com/clymb3r/PowerShell
-#>
-    $ReturnInfo = @{}
-
-    $AppLockerLogs = Get-WinEvent -LogName "Microsoft-Windows-AppLocker/EXE and DLL" -ErrorAction SilentlyContinue | Where {$_.Id -eq 8002}
-
-    foreach ($Log in $AppLockerLogs)
-    {
-        $SID = New-Object System.Security.Principal.SecurityIdentifier($Log.Properties[7].Value)
-        $UserName = $SID.Translate( [System.Security.Principal.NTAccount])
-
-        $ExeName = $Log.Properties[10].Value
-
-        $Key = $UserName.ToString() + "::::" + $ExeName
-
-        if (!$ReturnInfo.ContainsKey($Key))
-        {
-            $Properties = @{
-                Exe = $ExeName
-                User = $UserName.Value
-                Count = 1
-                Times = @($Log.TimeCreated)
-            }
-
-            $Item = New-Object PSObject -Property $Properties
-            $ReturnInfo.Add($Key, $Item)
-        }
-        else
-        {
-            $ReturnInfo[$Key].Count++
-            $ReturnInfo[$Key].Times += ,$Log.TimeCreated
-        }
-    }
-
-    return $ReturnInfo
-}
-
-
-function Find-PSScriptsInPSAppLog
-{
-<#
-.SYNOPSIS
-
-Go through the PowerShell operational log to find scripts that run (by looking for ExecutionPipeline logs eventID 4100 in PowerShell app log).
-You can then backdoor these scripts or do other malicious things.
-
-Function: Find-AppLockerLogs
-Author: Joe Bialek, Twitter: @JosephBialek
-Required Dependencies: None
-Optional Dependencies: None
-
-.DESCRIPTION
-
-Go through the PowerShell operational log to find scripts that run (by looking for ExecutionPipeline logs eventID 4100 in PowerShell app log).
-You can then backdoor these scripts or do other malicious things.
-
-.EXAMPLE
-
-Find-PSScriptsInPSAppLog
-Find unique PowerShell scripts being executed from the PowerShell operational log.
-
-.NOTES
-
-.LINK
-
-Blog: http://clymb3r.wordpress.com/
-Github repo: https://github.com/clymb3r/PowerShell
-#>
-    $ReturnInfo = @{}
-    $Logs = Get-WinEvent -LogName "Microsoft-Windows-PowerShell/Operational" -ErrorAction SilentlyContinue | Where {$_.Id -eq 4100}
-
-    foreach ($Log in $Logs)
-    {
-        $ContainsScriptName = $false
-        $LogDetails = $Log.Message -split "`r`n"
-
-        $FoundScriptName = $false
-        foreach($Line in $LogDetails)
-        {
-            if ($Line -imatch "^\s*Script\sName\s=\s(.+)")
-            {
-                $ScriptName = $Matches[1]
-                $FoundScriptName = $true
-            }
-            elseif ($Line -imatch "^\s*User\s=\s(.*)")
-            {
-                $User = $Matches[1]
-            }
-        }
-
-        if ($FoundScriptName)
-        {
-            $Key = $ScriptName + "::::" + $User
-
-            if (!$ReturnInfo.ContainsKey($Key))
-            {
-                $Properties = @{
-                    ScriptName = $ScriptName
-                    UserName = $User
-                    Count = 1
-                    Times = @($Log.TimeCreated)
-                }
-
-                $Item = New-Object PSObject -Property $Properties
-                $ReturnInfo.Add($Key, $Item)
-            }
-            else
-            {
-                $ReturnInfo[$Key].Count++
-                $ReturnInfo[$Key].Times += ,$Log.TimeCreated
-            }
-        }
-    }
-
-    return $ReturnInfo
-}
-
-
-function Find-RDPClientConnections
-{
-<#
-.SYNOPSIS
-
-Search the registry to find saved RDP client connections. This shows you what connections an RDP client has remembered, indicating what servers the user 
-usually RDP's to.
-
-Function: Find-RDPClientConnections
-Author: Joe Bialek, Twitter: @JosephBialek
-Required Dependencies: None
-Optional Dependencies: None
-
-.DESCRIPTION
-
-Search the registry to find saved RDP client connections. This shows you what connections an RDP client has remembered, indicating what servers the user 
-usually RDP's to.
-
-.EXAMPLE
-
-Find-RDPClientConnections
-Find unique saved RDP client connections.
-
-.NOTES
-
-.LINK
-
-Blog: http://clymb3r.wordpress.com/
-Github repo: https://github.com/clymb3r/PowerShell
-#>
-    $ReturnInfo = @{}
-
-    $Null = New-PSDrive -Name HKU -PSProvider Registry -Root Registry::HKEY_USERS -ErrorAction SilentlyContinue
-
-    #Attempt to enumerate the servers for all users
-    $Users = Get-ChildItem -Path "HKU:\"
-    foreach ($UserSid in $Users.PSChildName)
-    {
-        $Servers = Get-ChildItem "HKU:\$($UserSid)\Software\Microsoft\Terminal Server Client\Servers" -ErrorAction SilentlyContinue
-
-        foreach ($Server in $Servers)
-        {
-            $Server = $Server.PSChildName
-            $UsernameHint = (Get-ItemProperty -Path "HKU:\$($UserSid)\Software\Microsoft\Terminal Server Client\Servers\$($Server)").UsernameHint
-                
-            $Key = $UserSid + "::::" + $Server + "::::" + $UsernameHint
-
-            if (!$ReturnInfo.ContainsKey($Key))
-            {
-                $SIDObj = New-Object System.Security.Principal.SecurityIdentifier($UserSid)
-                $User = ($SIDObj.Translate([System.Security.Principal.NTAccount])).Value
-
-                $Properties = @{
-                    CurrentUser = $User
-                    Server = $Server
-                    UsernameHint = $UsernameHint
-                }
-
-                $Item = New-Object PSObject -Property $Properties
-                $ReturnInfo.Add($Key, $Item)
-            }
-        }
-    }
-
-    return $ReturnInfo
-}
-
-# End PowerSploit Functions
 
 function Get-BrowserInformation {
 <#
@@ -1956,6 +1454,95 @@ Source: http://windowsitpro.com/powershell/retrieve-information-open-browsing-se
 }
 
 # End Browser Enumeration
+
+function Get-ExplicitLogonEvents {
+<#
+    .SYNOPSIS
+
+    Gets 4648 Explicit Logon Events from Windows Event Log
+
+    Author: Lee Christensen (@tifkin_)
+#>
+
+    [CmdletBinding()]
+    Param(
+        [int]
+        $Days = 10
+    )
+
+    Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4648; StartTime=(Get-Date).AddDays(-$Days)} | ?{!$_.Properties[5].Value.EndsWith('$')} | %{
+
+        $Properties = $_.Properties
+        New-Object PSObject -Property @{
+            TimeCreated       = $_.TimeCreated
+            #SubjectUserSid    = $Properties[0].Value.ToString()
+            SubjectUserName   = $Properties[1].Value
+            SubjectDomainName = $Properties[2].Value
+            #SubjectLogonId    = $Properties[3].Value
+            #LogonGuid         = $Properties[4].Value.ToString()
+            TargetUserName    = $Properties[5].Value
+            TargetDomainName  = $Properties[6].Value
+            #TargetLogonGuid   = $Properties[7].Value
+            #TargetServerName  = $Properties[8].Value
+            #TargetInfo        = $Properties[9].Value
+            #ProcessId         = $Properties[10].Value
+            ProcessName       = $Properties[11].Value
+            IpAddress         = $Properties[12].Value
+            #IpPort            = $Properties[13].Value
+        }
+    }
+}
+
+function Get-LogonEvents {
+<#
+    .SYNOPSIS
+
+    Gets 4624 Logon Events from Windows Event Log
+
+    Author: Lee Christensen (@tifkin_)
+#>
+    [CmdletBinding()]
+    Param(
+        [int]
+        $MaxEvents = 10
+    )
+
+    Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624} -MaxEvents $MaxEvents | %{
+        $Properties = $_.Properties
+        New-Object PSObject -Property @{
+            TimeCreated               = $_.TimeCreated
+            #SubjectUserSid            = $Properties[0].Value.ToString()
+            #SubjectUserName           = $Properties[1].Value
+            #SubjectDomainName         = $Properties[2].Value
+            #SubjectLogonId            = $Properties[3].Value
+            #Subject = "$($Properties[2].Value)\$($Properties[1].Value)"
+            #TargetUserSid             = $Properties[4].Value.ToString()
+            #TargetUserName            = $Properties[5].Value
+            #TargetDomainName          = $Properties[6].Value
+            #TargetLogonId             = $Properties[7].Value
+            Target = "$($Properties[6].Value)\$($Properties[5].Value)"
+            LogonType                 = $Properties[8].Value
+            #LogonProcessName          = $Properties[9].Value
+            AuthenticationPackageName = $Properties[10].Value
+            #WorkstationName           = $Properties[11].Value
+            #LogonGuid                 = $Properties[12].Value
+            #TransmittedServices       = $Properties[13].Value
+            #LmPackageName             = $Properties[14].Value
+            #KeyLength                 = $Properties[15].Value
+            #ProcessId                 = $Properties[16].Value
+            #ProcessName               = $Properties[17].Value
+            IpAddress                 = $Properties[18].Value
+            #ImpersonationLevel        = $Properties[20].Value
+            #RestrictedAdminMode       = $Properties[21].Value
+            #TargetOutboundUserName    = $Properties[22].Value
+            #TargetOutboundDomainName  = $Properties[23].Value
+            #VirtualAccount            = $Properties[24].Value
+            #TargetLinkedLogonId       = $Properties[25].Value
+            #ElevatedToken             = $Properties[26].Value
+        }
+    }
+}
+
 
 function Get-UserSPNS {
 <#
@@ -3071,124 +2658,6 @@ function Get-CurrentUserTokenGroupSid {
     }
     else {
         Write-Warning ([ComponentModel.Win32Exception] $LastError)
-    }
-}
-
-
-function Add-ServiceDacl {
-<#
-    .SYNOPSIS
-
-        Adds a Dacl field to a service object returned by Get-Service.
-
-        Author: Matthew Graeber (@mattifestation)
-        License: BSD 3-Clause
-
-    .DESCRIPTION
-
-        Takes one or more ServiceProcess.ServiceController objects on the pipeline and adds a
-        Dacl field to each object. It does this by opening a handle with ReadControl for the
-        service with using the GetServiceHandle Win32 API call and then uses
-        QueryServiceObjectSecurity to retrieve a copy of the security descriptor for the service.
-
-    .PARAMETER Name
-
-        An array of one or more service names to add a service Dacl for. Passable on the pipeline.
-
-    .EXAMPLE
-
-        PS C:\> Get-Service | Add-ServiceDacl
-
-        Add Dacls for every service the current user can read.
-
-    .EXAMPLE
-
-        PS C:\> Get-Service -Name VMTools | Add-ServiceDacl
-
-        Add the Dacl to the VMTools service object.
-
-    .OUTPUTS
-
-        ServiceProcess.ServiceController
-
-    .LINK
-
-        https://rohnspowershellblog.wordpress.com/2013/03/19/viewing-service-acls/
-#>
-
-    [OutputType('ServiceProcess.ServiceController')]
-    param (
-        [Parameter(Position=0, Mandatory=$True, ValueFromPipeline=$True, ValueFromPipelineByPropertyName=$True)]
-        [Alias('ServiceName')]
-        [String[]]
-        [ValidateNotNullOrEmpty()]
-        $Name
-    )
-
-    BEGIN {
-        filter Local:Get-ServiceReadControlHandle {
-            [OutputType([IntPtr])]
-            param (
-                [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
-                [ValidateNotNullOrEmpty()]
-                [ValidateScript({ $_ -as 'ServiceProcess.ServiceController' })]
-                $Service
-            )
-
-            $GetServiceHandle = [ServiceProcess.ServiceController].GetMethod('GetServiceHandle', [Reflection.BindingFlags] 'Instance, NonPublic')
-
-            $ReadControl = 0x00020000
-
-            $RawHandle = $GetServiceHandle.Invoke($Service, @($ReadControl))
-
-            $RawHandle
-        }
-    }
-
-    PROCESS {
-        ForEach($ServiceName in $Name) {
-
-            $IndividualService = Get-Service -Name $ServiceName -ErrorAction Stop
-
-            try {
-                Write-Verbose "Add-ServiceDacl IndividualService : $($IndividualService.Name)"
-                $ServiceHandle = Get-ServiceReadControlHandle -Service $IndividualService
-            }
-            catch {
-                $ServiceHandle = $Null
-                Write-Verbose "Error opening up the service handle with read control for $($IndividualService.Name) : $_"
-            }
-
-            if ($ServiceHandle -and ($ServiceHandle -ne [IntPtr]::Zero)) {
-                $SizeNeeded = 0
-
-                $Result = $Advapi32::QueryServiceObjectSecurity($ServiceHandle, [Security.AccessControl.SecurityInfos]::DiscretionaryAcl, @(), 0, [Ref] $SizeNeeded);$LastError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-
-                # 122 == The data area passed to a system call is too small
-                if ((-not $Result) -and ($LastError -eq 122) -and ($SizeNeeded -gt 0)) {
-                    $BinarySecurityDescriptor = New-Object Byte[]($SizeNeeded)
-
-                    $Result = $Advapi32::QueryServiceObjectSecurity($ServiceHandle, [Security.AccessControl.SecurityInfos]::DiscretionaryAcl, $BinarySecurityDescriptor, $BinarySecurityDescriptor.Count, [Ref] $SizeNeeded);$LastError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-
-                    if (-not $Result) {
-                        Write-Error ([ComponentModel.Win32Exception] $LastError)
-                    }
-                    else {
-                        $RawSecurityDescriptor = New-Object Security.AccessControl.RawSecurityDescriptor -ArgumentList $BinarySecurityDescriptor, 0
-                        $Dacl = $RawSecurityDescriptor.DiscretionaryAcl | ForEach-Object {
-                            Add-Member -InputObject $_ -MemberType NoteProperty -Name AccessRights -Value ($_.AccessMask -as $ServiceAccessRights) -PassThru
-                        }
-
-                        Add-Member -InputObject $IndividualService -MemberType NoteProperty -Name Dacl -Value $Dacl -PassThru
-                    }
-                }
-                else {
-                    Write-Error ([ComponentModel.Win32Exception] $LastError)
-                }
-
-                $Null = $Advapi32::CloseServiceHandle($ServiceHandle)
-            }
-        }
     }
 }
 
