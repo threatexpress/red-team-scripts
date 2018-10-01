@@ -7,6 +7,11 @@ Related tool release blog posts can be found at [Threat Express](http://threatex
 
 **Perform situational awareness on a local host or domain upon initial compromise.**
 
+### `enumerate.cna`
+
+Cobalt Strike Aggressor script function and alias to perform some rudimentary Windows host enumeration with Beacon built-in commands (i.e. no Powershell, binary calls, or process injection). Additionally, adds a basic `enumerate` alias for Linux based systems in SSH sessions.
+
+
 ### `Invoke-HostEnum`
 
 **Author:** Andrew Chiles (@andrewchiles) with code by harmj0y, Joe Bialek, rvrsh3ll, Beau Bullock, Tim Medin

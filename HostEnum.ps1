@@ -19,7 +19,7 @@ Future Additions
  Windows Event Forwarding registry::HKLM\Software\Policies\Microsoft\Windows\EventLog\EventForwarding\SubscriptionManager"
   Add https://github.com/sekirkity/BrowserGather.git 
   User IdleTime https://stackoverflow.com/questions/15845508/get-idle-time-of-machine
-  
+  Get all ConsoleHost history files
 #>
 
 #requires -version 2
@@ -443,8 +443,7 @@ TR:Nth-Child(Even) {Background-Color: #dddddd;}
             $Results | ConvertTo-HTML -Fragment -PreContent "<H2>Local Groups</H2>" | Out-File -Append $HTMLReportFile
         }
         
-        # Fix this
-        # Local Group Membership (Work in progress) Need to fix regex parsing
+        # Local Group Membership 
         "`n[+] Local Group Membership:`n"
         $Groups = Get-WmiObject -Class Win32_Group -Filter "Domain='$($env:ComputerName)'" | Select-Object -expand Name
         
@@ -457,8 +456,6 @@ TR:Nth-Child(Even) {Background-Color: #dddddd;}
                 $Results | ConvertTo-HTML -Fragment -PreContent "<H2>Local Group Membership - $Group</H2>" | Out-File -Append $HTMLReportFile
             }
         }
-        #$Results = $Groups | % {Get-WmiObject -Class Win32_GroupUser -Filter "GroupComponent=""Win32_Group.Domain='$env:COMPUTERNAME',Name='$_'""" |
-        #% {[wmi]$_.PartComponent} | Select-Object Name, Domain, SID, AccountType, PasswordExpires, Disabled, Lockout, Status, Description}
 
         # Explicit Logon Events (Requires admin)
         "`n[+] Explicit Logon Events (4648) - Last 10 Days:`n"
@@ -633,7 +630,7 @@ TR:Nth-Child(Even) {Background-Color: #dddddd;}
             # Get User SPNS
             "`n[+] User Account SPNs`n"
             $Results = $null
-            $Results = Get-UserSPNS -UniqueAccounts | Sort-Object PasswordLastSet -Ascending -Unique
+            $Results = Get-UserSPNS -UniqueAccounts | Sort-Object PasswordLastSet -Unique
             $Results | Format-Table -auto
             If ($HTMLReport) {
                 $Results | ConvertTo-HTML -Fragment -PreContent "<H2>User Account SPNs</H2>" | Out-File -Append $HTMLReportFile

