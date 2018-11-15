@@ -953,7 +953,12 @@ Local filesystem enumeration
 
     # Get Powershell History
     "`n[+] Current User Powershell Console History:`n`n"
-    (Get-Content $ENV:APPDATA\Microsoft\Windows\PowerShell\PSReadline\ConsoleHost_history.txt -EA 0 |select -last 50) -join "`r`n"
+    Try {
+        $PowershellHistory = (Get-PSReadlineOption).HistorySavePath
+        (Get-Content $PowershellHistory -EA 0 |select -last 50) -join "`r`n"
+    } Catch [System.Management.Automation.CommandNotFoundException]{
+        (Get-Content $ENV:APPDATA\Microsoft\Windows\PowerShell\PSReadline\ConsoleHost_history.txt -EA 0 |select -last 50) -join "`r`n"
+    }
     
     # Get Host File
     "`n[+] Contents of Hostfile:`n`n"
