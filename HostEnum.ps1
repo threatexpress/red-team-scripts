@@ -702,16 +702,16 @@ Gets basic system information from the host
         PSMODULELOGGING         = If((Get-ItemProperty HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ModuleLogging -EA 0).EnableModuleLogging -eq 1){"Enabled"} Else {"Disabled"}
         LSASSPROTECTION         = If((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\Lsa -EA 0).RunAsPPL -eq 1){"Enabled"} Else {"Disabled"}
         LAPS                    = If((Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft Services\AdmPwd" -EA 0).AdmPwdEnabled -eq 1){"Enabled"} Else {"Disabled"}
-        UAC                     = If((Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System -EA 0).EnableLUA -eq 1){"Enabled"} Else {"Disabled"}
-        # LocalAccountTokenFilterPolicy = 1 disables local account token filtering
-        UACTOKENFILTERING       = If((Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System -EA 0).LocalAccountTokenFilterPolicy -eq 1){"Disabled (PTH likely w/ local admins)"} Else {"Enabled"}
-        UACFILTERADMINTOKEN     = If((Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System -EA 0).FilterAdministratorToken -eq 1){"Enabled (RID500 protected)"} Else {"Disabled"}
+        UAC                     = If((Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System -EA 0).EnableLUA -eq 1){"Enabled"} Else {"Disabled (UAC is Disabled)"}
+        # LocalAccountTokenFilterPolicy = 1 disables local account token filtering for all non-rid500 accounts
+        UACLOCALACCOUNTTOKENFILTERPOLICY       = If((Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System -EA 0).LocalAccountTokenFilterPolicy -eq 1){"Disabled (PTH likely w/ non-RID500 Local Admins)"} Else {"Enabled (Remote Administration restricted for non-RID500 Local Admins)"}
+        UACFILTERADMINISTRATORTOKEN     = If((Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System -EA 0).FilterAdministratorToken -eq 1){"Enabled (RID500 protected)"} Else {"Disabled (PTH likely with RID500 Account)"}
         HIGHINTEGRITY           = $IsHighIntegrity
         DENYRDPCONNECTIONS      = [bool](Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -EA 0).FDenyTSConnections
     }      
                 
     # PS feels the need to randomly re-order everything when converted to an object so let's presort
-    New-Object -TypeName PSobject -Property $SysInfoHash | Select-Object Hostname, OS, Architecture, "Date(UTC)", "Date(Local)", InstallDate, UpTime, IPAddresses, Domain, Username, LogonServer, PSVersion, PSCompatibleVersions, PSScriptBlockLogging, PSTranscription, PSTranscriptionDir, PSModuleLogging, LSASSProtection, LAPS, UAC, UACTOKENFILTERING, UACFILTERADMINTOKEN, HIGHINTEGRITY
+    New-Object -TypeName PSobject -Property $SysInfoHash | Select-Object Hostname, OS, Architecture, "Date(UTC)", "Date(Local)", InstallDate, UpTime, IPAddresses, Domain, Username, LogonServer, PSVersion, PSCompatibleVersions, PSScriptBlockLogging, PSTranscription, PSTranscriptionDir, PSModuleLogging, LSASSProtection, LAPS, UAC, UACLocalAccountTokenFilterPolicy, UACFilterAdministratorToken, HighIntegrity
 }
     
 function Get-ProcessInfo() {
