@@ -159,7 +159,7 @@ function Invoke-HostEnum {
         }
     </style>
     <title>System Report</title>
-    "@
+"@
     
         # Attempt to write out HTML report header and exit if there isn't sufficient permission
             Try {
@@ -4567,4 +4567,3 @@ function Invoke-HostEnum {
     $Types = $FunctionDefinitions | Add-Win32Type -Module $Module -Namespace 'PowerUp.NativeMethods'
     $Advapi32 = $Types['advapi32']
     $Kernel32 = $Types['kernel32']
-    
