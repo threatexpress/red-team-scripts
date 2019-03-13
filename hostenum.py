@@ -10,7 +10,7 @@ class Module:
             'Author': ['@andrewchiles'],
 
             'Description': ('Performs detailed enumeration of the local system in the current user content.' 
-                            'Optionaly performs Privesc checks and basic Windows Domain enumeration.'),
+                            'Optionally performs Privesc checks and basic Windows Domain enumeration.'),
 
             'Background' : True,
 
