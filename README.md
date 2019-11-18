@@ -60,5 +60,5 @@ This project and all individual scripts are under the BSD 3-Clause license
 ## Links
 
 [threatexpress.com](http://threatexpress.com)
-http://threatexpress.com/2018/01/hostenum-updates-usage/
-http://threatexpress.com/2017/05/invoke-hostenum/
+http://threatexpress.com/blogs/2018/hostenum-updates-usage/
+http://threatexpress.com/blogs/2017/invoke-hostenum/
